@@ -18,3 +18,8 @@ local.properties
 
 # Claude Code runtime state, not project source.
 /.claude
+
+# Release signing credentials — never committed.
+/keystore.properties
+*.jks
+*.keystore
