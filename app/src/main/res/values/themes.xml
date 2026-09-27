@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme: Compose owns real theming (see ui/theme/Theme.kt).
+         This XML theme only needs to set the window background before Compose
+         takes over, so it stays minimal. -->
+    <style name="Theme.NetLocker" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>

@@ -1,0 +1,20 @@
+*.iml
+.gradle/
+/local.properties
+.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+*.hprof
+/app/build
+/app/release
+
+# Screenshots/UI dumps captured while manually verifying the app on a real device —
+# test artifacts, not project source.
+/test-screenshots
+
+# Claude Code runtime state, not project source.
+/.claude
