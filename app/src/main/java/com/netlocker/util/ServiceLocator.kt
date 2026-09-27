@@ -1,11 +1,14 @@
 package com.netlocker.util
 
 import android.content.Context
+import com.netlocker.BuildConfig
 import com.netlocker.data.local.NetLockerDatabase
+import com.netlocker.data.repository.GithubUpdateRepositoryImpl
 import com.netlocker.data.repository.InstalledAppRepositoryImpl
 import com.netlocker.data.repository.NetworkRuleRepositoryImpl
 import com.netlocker.domain.repository.InstalledAppRepository
 import com.netlocker.domain.repository.NetworkRuleRepository
+import com.netlocker.domain.repository.UpdateRepository
 import com.netlocker.domain.usecase.ObserveAppWithRuleUseCase
 import com.netlocker.domain.usecase.ObserveAppsWithRulesUseCase
 import com.netlocker.domain.usecase.UpdateNetworkRuleUseCase
@@ -14,6 +17,7 @@ import com.netlocker.network.FirewallController
 import com.netlocker.network.FirewallControllerImpl
 import com.netlocker.network.RuleIndex
 import com.netlocker.network.TransportMonitor
+import com.netlocker.update.ApkInstaller
 
 /**
  * Hand-rolled composition root. NetLocker's dependency graph is small and static
@@ -58,4 +62,9 @@ object ServiceLocator {
     val updateNetworkRuleUseCase by lazy {
         UpdateNetworkRuleUseCase(networkRuleRepository, firewallController)
     }
+
+    val updateRepository: UpdateRepository by lazy {
+        GithubUpdateRepositoryImpl(currentVersionName = BuildConfig.VERSION_NAME)
+    }
+    val apkInstaller: ApkInstaller by lazy { ApkInstaller(appContext) }
 }

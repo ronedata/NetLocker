@@ -21,6 +21,12 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
+    <!-- NetLocker isn't on Play Store (see README §9), so its own "Check for updates"
+         (Settings) downloads and installs new versions itself via the normal system
+         Package Installer — this permission only lets it ask; the user still sees and
+         must approve the system's real install confirmation screen every time. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application
         android:name=".NetLockerApplication"
         android:allowBackup="false"

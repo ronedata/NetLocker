@@ -147,6 +147,13 @@ remains a possible *future* optional enhancement, not something this build depen
   "Prominent Disclosure" declaration for VPN-permission apps, and historically similar
   local-firewall apps (e.g. NetGuard) have not been distributed via Play, only via
   GitHub/F-Droid-style sideloading. Budget for this if Play distribution matters to you.
+  Because of this, NetLocker ships its own **Settings → Check for updates**: it checks
+  this repo's [latest GitHub Release](https://github.com/ronedata/NetLocker/releases/latest)
+  and, if newer, downloads the APK (`DownloadManager`) and hands it to the system
+  Package Installer (`ACTION_VIEW`) — the same "Install unknown apps" consent and
+  install confirmation screens you'd see installing any sideloaded APK by hand. No
+  silent installation; Android does not allow that for a non-privileged app, and
+  NetLocker doesn't try to.
 - **Rule changes take effect immediately for the exact case that matters most**
   (blocking/unblocking), including tearing down already-open connections for a
   just-restricted app (`FirewallEngine.invalidateSessionsForUid`) — but toggling an app
