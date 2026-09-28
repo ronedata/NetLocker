@@ -30,6 +30,7 @@ data class SettingsUiState(
     val autoRefresh: Boolean = true,
     val minimalNotification: Boolean = false,
     val textSize: TextSize = TextSize.DEFAULT,
+    val autoStartOnBoot: Boolean = false,
 )
 
 /** Never assumes success — mirrors exactly what the GitHub check / download actually
@@ -50,14 +51,22 @@ class SettingsViewModel(
     private val apkInstaller: ApkInstaller,
 ) : ViewModel() {
 
-    val uiState: StateFlow<SettingsUiState> = combine(
+    // Two groups, because `combine` only takes five typed flows at once.
+    private val displayPrefs = combine(
         preferencesManager.theme,
         preferencesManager.showSystemApps,
         preferencesManager.autoRefresh,
-        preferencesManager.minimalNotification,
         preferencesManager.textSize,
-    ) { theme, showSystemApps, autoRefresh, minimalNotification, textSize ->
-        SettingsUiState(theme, showSystemApps, autoRefresh, minimalNotification, textSize)
+    ) { theme, showSystemApps, autoRefresh, textSize ->
+        SettingsUiState(theme = theme, showSystemApps = showSystemApps, autoRefresh = autoRefresh, textSize = textSize)
+    }
+
+    val uiState: StateFlow<SettingsUiState> = combine(
+        displayPrefs,
+        preferencesManager.minimalNotification,
+        preferencesManager.autoStartOnBoot,
+    ) { display, minimalNotification, autoStartOnBoot ->
+        display.copy(minimalNotification = minimalNotification, autoStartOnBoot = autoStartOnBoot)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
     fun setTheme(theme: AppTheme) = viewModelScope.launch { preferencesManager.setTheme(theme) }
@@ -67,7 +76,9 @@ class SettingsViewModel(
     fun setTextSize(size: TextSize) = viewModelScope.launch { preferencesManager.setTextSize(size) }
     fun setMinimalNotification(enabled: Boolean) = viewModelScope.launch { preferencesManager.setMinimalNotification(enabled) }
 
-    private val _updateState =MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
+    fun setAutoStartOnBoot(enabled: Boolean) = viewModelScope.launch { preferencesManager.setAutoStartOnBoot(enabled) }
+
+    private val _updateState = MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
     val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
 
     private val _installIntentRequests = MutableSharedFlow<Intent>(extraBufferCapacity = 1)

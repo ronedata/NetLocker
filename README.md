@@ -33,9 +33,23 @@ but stops enforcing it — the app behaves exactly as if it had no rule (verifie
 device: a disabled "Blocked" rule produced zero firewall decisions and the app went
 online; re-enabling it resumed dropping its traffic).
 
-The database is at **schema v2** (adds `isEnabled` and `createdAt`). Upgrading from v1
-keeps every saved rule via an explicit migration — there is deliberately no destructive
-fallback, since silently wiping a firewall's rules would be a security regression.
+The database is at **schema v3** (v2 added `isEnabled` and `createdAt`; v3 adds the
+`blocked_stats` table). Upgrading keeps every saved rule via explicit migrations — there
+is deliberately no destructive fallback, since silently wiping a firewall's rules would be
+a security regression.
+
+**Blocked attempts.** While the firewall runs, each connection a rule blocks is counted per
+app per day and shown on the Rules cards and App Details ("N blocked attempts today"). A
+"blocked attempt" is one new flow (TCP SYN / UDP flow, including DNS lookups): retransmits
+of the same flow are counted once per 30 seconds, so a retrying app doesn't inflate the
+number. Only flows attributed to an app with a restrictive rule are counted; counts are kept
+for 7 days.
+
+**Keeping the firewall running.** A Quick Settings tile toggles the firewall (it reflects the
+real status, and opens the app if the VPN permission hasn't been granted yet). The optional
+"Start when phone turns on" setting restarts it after a reboot or an app update, only if
+the VPN permission is still granted. Android's own "Always-on VPN" is linked from Settings
+but has not been verified with NetLocker on a device.
 
 ## 2. Why this needs a local VPN (read this before anything else)
 
@@ -119,6 +133,8 @@ API 29.
 | `INTERNET`, `ACCESS_NETWORK_STATE` | Relaying traffic, watching Wi-Fi/Cellular availability |
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE` | Keeps the firewall alive in the background |
 | `POST_NOTIFICATIONS` (Android 13+) | Shows the "firewall active" status notification — requested explicitly, right before you enable the firewall, never silently |
+| `RECEIVE_BOOT_COMPLETED` | Only used by the optional "Start when phone turns on" setting |
+| `PACKAGE_USAGE_STATS` ("Usage access", granted by you in system settings) | Shows an app's data use today on its details page |
 | `QUERY_ALL_PACKAGES` | Lists *all* installed apps, not just ones NetLocker declares an intent filter for. This is a Google Play "sensitive permission" requiring a declaration form — see §9 |
 
 NetLocker never requests a permission without a visible reason shown first (spec

@@ -93,28 +93,30 @@ fun RulesScreen(
             }
         }
 
-        // Only the title row stays fixed. Everything else is part of one list so that,
-        // especially with a large system font, the banner/filters/search scroll away and
-        // the rules get the whole screen instead of the bottom half.
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+        // Title, firewall banner, filters and search stay fixed; only the rule list below
+        // them scrolls.
+        Column(
+            modifier = Modifier.padding(top = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            item(key = "firewall-banner") { FirewallStatusBanner(firewall) }
+            FirewallStatusBanner(firewall)
 
             if (!state.isLoading && state.totalCount > 0) {
-                item(key = "filters") { FilterRow(state.filter, state.counts, viewModel::onFilterSelected) }
-                item(key = "search") {
-                    NetLockerSearchField(
-                        query = state.query,
-                        onQueryChange = viewModel::onQueryChange,
-                        placeholder = "Search rules...",
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+                FilterRow(state.filter, state.counts, viewModel::onFilterSelected)
+                NetLockerSearchField(
+                    query = state.query,
+                    onQueryChange = viewModel::onQueryChange,
+                    placeholder = "Search rules...",
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
+        }
 
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 10.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             when {
                 state.isLoading -> item(key = "loading") { AppListLoading(message = "Loading your rules…", rows = 4) }
                 state.totalCount == 0 -> item(key = "empty-all") {
@@ -134,6 +136,7 @@ fun RulesScreen(
                     RuleCard(
                         item = item,
                         firewallActive = firewall.isActive,
+                        blockedToday = state.blockedToday[item.rule.packageName] ?: 0,
                         onEdit = { editing = item },
                         onToggleEnabled = { viewModel.setEnabled(item.rule.packageName, !item.rule.isEnabled) },
                         onDelete = { deleting = item },

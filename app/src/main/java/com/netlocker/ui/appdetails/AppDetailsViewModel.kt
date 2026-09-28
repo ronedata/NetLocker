@@ -7,6 +7,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.netlocker.data.usage.AppDataUsageReader
 import com.netlocker.data.usage.DataUsage
 import com.netlocker.domain.model.AppWithRule
+import com.netlocker.domain.model.BlockedStat
+import com.netlocker.domain.repository.BlockedStatsRepository
 import com.netlocker.domain.usecase.DeleteRuleUseCase
 import com.netlocker.domain.usecase.ObserveAppWithRuleUseCase
 import com.netlocker.domain.usecase.UpdateNetworkRuleUseCase
@@ -33,7 +35,13 @@ class AppDetailsViewModel(
     private val updateNetworkRuleUseCase: UpdateNetworkRuleUseCase,
     private val deleteRuleUseCase: DeleteRuleUseCase,
     private val usageReader: AppDataUsageReader,
+    blockedStatsRepository: BlockedStatsRepository,
 ) : ViewModel() {
+
+    /** Today's blocked-connection tally for this app (null until something was blocked). */
+    val blockedToday: StateFlow<BlockedStat?> = blockedStatsRepository.observeToday()
+        .map { it[packageName] }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val appWithRule: StateFlow<AppWithRule?> = observeAppWithRuleUseCase(packageName)
         .map<AppWithRule, AppWithRule?> { it }
@@ -84,6 +92,7 @@ class AppDetailsViewModel(
                     ServiceLocator.updateNetworkRuleUseCase,
                     ServiceLocator.deleteRuleUseCase,
                     ServiceLocator.appDataUsageReader,
+                    ServiceLocator.blockedStatsRepository,
                 )
             }
         }

@@ -49,6 +49,7 @@ class NetLockerVpnService : VpnService() {
     private lateinit var ruleIndex: RuleIndex
     private lateinit var transportMonitor: TransportMonitor
     private lateinit var connectionOwnerResolver: ConnectionOwnerResolver
+    private lateinit var blockedTracker: BlockedAttemptTracker
 
     /** Package names currently excluded from the tunnel (i.e. fully-allowed at the
      *  time the tunnel was last (re)established) — see [reconfigureAndEstablish]. */
@@ -66,6 +67,7 @@ class NetLockerVpnService : VpnService() {
         ruleIndex = ServiceLocator.ruleIndex
         transportMonitor = ServiceLocator.transportMonitor
         connectionOwnerResolver = ConnectionOwnerResolver(this)
+        blockedTracker = BlockedAttemptTracker(ServiceLocator.blockedStatsRepository)
         instance = this
     }
 
@@ -100,6 +102,7 @@ class NetLockerVpnService : VpnService() {
 
         ruleIndex.start(serviceScope)
         transportMonitor.start()
+        blockedTracker.start(serviceScope)
         watchNotificationPreference()
 
         serviceScope.launch {
@@ -170,6 +173,7 @@ class NetLockerVpnService : VpnService() {
             connectionOwnerResolver = connectionOwnerResolver,
             protectSocket = ::protect,
             protectDatagramSocket = ::protect,
+            onBlocked = blockedTracker::onBlocked,
         ).also { it.start(serviceScope) }
 
         _status.value = FirewallStatus.Active
@@ -199,6 +203,7 @@ class NetLockerVpnService : VpnService() {
         tunFd?.close()
         tunFd = null
         transportMonitor.stop()
+        saveBlockedCounts()
         excludedPackages = emptySet()
         _status.value = FirewallStatus.Stopped
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -212,10 +217,17 @@ class NetLockerVpnService : VpnService() {
         super.onRevoke()
     }
 
+    /** Writes any not-yet-saved blocked counts. Runs on its own short-lived scope because
+     *  [serviceScope] is cancelled when the service goes away. */
+    private fun saveBlockedCounts() {
+        CoroutineScope(Dispatchers.IO).launch { blockedTracker.stop() }
+    }
+
     override fun onDestroy() {
         engine?.stop()
         tunFd?.close()
         transportMonitor.stop()
+        saveBlockedCounts()
         if (instance === this) instance = null
         serviceScope.cancel()
         super.onDestroy()

@@ -46,6 +46,10 @@ object ServiceLocator {
         InstalledAppRepositoryImpl(appContext)
     }
 
+    val blockedStatsRepository: com.netlocker.domain.repository.BlockedStatsRepository by lazy {
+        com.netlocker.data.repository.BlockedStatsRepositoryImpl(database.blockedStatDao())
+    }
+
     val preferencesManager: PreferencesManager by lazy { PreferencesManager(appContext) }
 
     val firewallController: FirewallController by lazy { FirewallControllerImpl(appContext) }

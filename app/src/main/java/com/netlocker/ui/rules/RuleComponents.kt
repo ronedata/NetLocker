@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import com.netlocker.domain.model.InstalledApp
 import com.netlocker.domain.model.NetworkRule
 import com.netlocker.domain.model.RuleStatus
+import com.netlocker.domain.model.blockedTodayLabel
 import com.netlocker.domain.usecase.RuleWithApp
 import com.netlocker.ui.components.AppIconImage
 import com.netlocker.ui.components.CircleIconButton
@@ -87,6 +88,7 @@ import com.netlocker.ui.theme.netLocker
 fun RuleCard(
     item: RuleWithApp,
     firewallActive: Boolean,
+    blockedToday: Int,
     onEdit: () -> Unit,
     onToggleEnabled: () -> Unit,
     onDelete: () -> Unit,
@@ -138,6 +140,19 @@ fun RuleCard(
                 ) {
                     TransportPill("Wi-Fi", Icons.Filled.Wifi, rule.wifiAllowed, disabled)
                     TransportPill("Mobile Data", Icons.Filled.SignalCellularAlt, rule.mobileDataAllowed, disabled)
+                }
+                if (blockedToday > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Block, contentDescription = null, tint = colors.blocked, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            blockedTodayLabel(blockedToday),
+                            fontSize = 12.sp,
+                            color = colors.blocked,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     EnforcementLabel(disabled = disabled, active = firewallActive, modifier = Modifier.weight(1f))

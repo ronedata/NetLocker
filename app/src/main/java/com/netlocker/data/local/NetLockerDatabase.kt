@@ -7,11 +7,14 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.netlocker.data.local.dao.AppRuleDao
+import com.netlocker.data.local.dao.BlockedStatDao
 import com.netlocker.data.local.entity.AppRuleEntity
+import com.netlocker.data.local.entity.BlockedStatEntity
 
-@Database(entities = [AppRuleEntity::class], version = 2, exportSchema = true)
+@Database(entities = [AppRuleEntity::class, BlockedStatEntity::class], version = 3, exportSchema = true)
 abstract class NetLockerDatabase : RoomDatabase() {
     abstract fun appRuleDao(): AppRuleDao
+    abstract fun blockedStatDao(): BlockedStatDao
 
     companion object {
         @Volatile private var instance: NetLockerDatabase? = null
@@ -31,6 +34,18 @@ abstract class NetLockerDatabase : RoomDatabase() {
             }
         }
 
+        /** v2 -> v3: adds the per-day blocked-attempt counters. A new table only — the
+         *  saved rules table is not touched. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS blocked_stats (" +
+                        "packageName TEXT NOT NULL, day INTEGER NOT NULL, count INTEGER NOT NULL, " +
+                        "lastBlockedAt INTEGER NOT NULL, PRIMARY KEY(packageName, day))",
+                )
+            }
+        }
+
         fun getInstance(context: Context): NetLockerDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -38,7 +53,7 @@ abstract class NetLockerDatabase : RoomDatabase() {
                     NetLockerDatabase::class.java,
                     "netlocker.db",
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

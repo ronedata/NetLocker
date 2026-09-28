@@ -8,6 +8,7 @@ import com.netlocker.domain.model.InstalledApp
 import com.netlocker.domain.model.RuleCounts
 import com.netlocker.domain.model.RuleFilter
 import com.netlocker.domain.model.countRules
+import com.netlocker.domain.repository.BlockedStatsRepository
 import com.netlocker.domain.repository.InstalledAppRepository
 import com.netlocker.domain.usecase.DeleteRuleUseCase
 import com.netlocker.domain.usecase.ObserveRulesWithAppsUseCase
@@ -34,6 +35,8 @@ data class RulesUiState(
     val query: String = "",
     /** Installed apps that don't have a rule yet — the candidates for "Add Rule". */
     val addableApps: List<InstalledApp> = emptyList(),
+    /** Connection attempts blocked today, by package name. */
+    val blockedToday: Map<String, Int> = emptyMap(),
     val isLoading: Boolean = true,
 )
 
@@ -47,6 +50,7 @@ private data class Controls(val filter: RuleFilter = RuleFilter.ALL, val query: 
 class RulesViewModel(
     observeRulesWithApps: ObserveRulesWithAppsUseCase,
     installedAppRepository: InstalledAppRepository,
+    blockedStatsRepository: BlockedStatsRepository,
     private val updateNetworkRuleUseCase: UpdateNetworkRuleUseCase,
     private val setRuleEnabledUseCase: SetRuleEnabledUseCase,
     private val deleteRuleUseCase: DeleteRuleUseCase,
@@ -59,7 +63,8 @@ class RulesViewModel(
         installedAppRepository.observeInstalledApps(includeSystemApps = true),
         installedAppRepository.isLoaded,
         controls,
-    ) { rules, allApps, loaded, ctl ->
+        blockedStatsRepository.observeToday(),
+    ) { rules, allApps, loaded, ctl, blocked ->
         val ruledPackages = rules.map { it.rule.packageName }.toSet()
         val query = ctl.query.trim()
 
@@ -81,6 +86,7 @@ class RulesViewModel(
             addableApps = allApps
                 .filter { it.packageName !in ruledPackages }
                 .sortedWith(compareBy({ it.isSystemApp }, { it.label.lowercase() })),
+            blockedToday = blocked.mapValues { it.value.count },
             isLoading = !loaded,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RulesUiState())
@@ -108,6 +114,7 @@ class RulesViewModel(
                 RulesViewModel(
                     ServiceLocator.observeRulesWithAppsUseCase,
                     ServiceLocator.installedAppRepository,
+                    ServiceLocator.blockedStatsRepository,
                     ServiceLocator.updateNetworkRuleUseCase,
                     ServiceLocator.setRuleEnabledUseCase,
                     ServiceLocator.deleteRuleUseCase,

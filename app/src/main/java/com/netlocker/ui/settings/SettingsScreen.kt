@@ -1,6 +1,7 @@
 package com.netlocker.ui.settings
 
 import android.content.Intent
+import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,7 +37,11 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.VpnLock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -195,6 +200,49 @@ fun SettingsScreen(
                                 .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
                         )
                     },
+                )
+            }
+        }
+
+        // Keeping the firewall running: boot auto-start, Android's Always-on VPN, and the tile.
+        SwitchCard(
+            icon = Icons.Filled.PowerSettingsNew,
+            title = "Start when phone turns on",
+            subtitle = "Turn the firewall on automatically after a restart or after NetLocker updates. " +
+                "Uses the VPN permission you already gave.",
+            checked = uiState.autoStartOnBoot,
+            onCheckedChange = viewModel::setAutoStartOnBoot,
+        )
+        SettingsCard(
+            icon = Icons.Filled.VpnLock,
+            title = "Always-on VPN",
+            subtitle = "Android can keep a VPN app running for you. Pick NetLocker in Android's VPN settings " +
+                "(its optional \"Block connections without VPN\" is stricter: no internet at all while the firewall is off).",
+        ) {
+            ClickRow(
+                icon = Icons.Filled.Settings,
+                title = "Open VPN settings",
+                subtitle = "",
+                enabled = true,
+                onClick = { context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
+            )
+        }
+        SettingsCard(
+            icon = Icons.Filled.Tune,
+            title = "Quick Settings tile",
+            subtitle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                "Turn the firewall on/off from the notification shade."
+            } else {
+                "Swipe down twice, tap the pencil (edit) icon, and drag the Firewall tile into your panel."
+            },
+        ) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ClickRow(
+                    icon = Icons.Filled.Add,
+                    title = "Add tile",
+                    subtitle = "",
+                    enabled = true,
+                    onClick = { requestAddTile(context) },
                 )
             }
         }
@@ -452,4 +500,17 @@ private fun StatusLine(
         }
         Text(text, color = color, fontSize = 14.sp)
     }
+}
+
+/** Asks Android to add the Firewall tile to Quick Settings (Android 13+). The system shows
+ *  its own confirmation; NetLocker can't add it silently. */
+@androidx.annotation.RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private fun requestAddTile(context: android.content.Context) {
+    val statusBar = context.getSystemService(android.app.StatusBarManager::class.java) ?: return
+    statusBar.requestAddTileService(
+        android.content.ComponentName(context, com.netlocker.tile.FirewallTileService::class.java),
+        context.getString(com.netlocker.R.string.tile_label),
+        android.graphics.drawable.Icon.createWithResource(context, com.netlocker.R.drawable.ic_tile_firewall),
+        context.mainExecutor,
+    ) { }
 }

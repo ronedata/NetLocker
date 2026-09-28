@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BatteryStd
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Info
@@ -69,6 +70,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netlocker.domain.model.NetworkAccessState
+import com.netlocker.domain.model.blockedTodayLabel
 import com.netlocker.ui.components.AppIconImage
 import com.netlocker.ui.components.CircleIconButton
 import com.netlocker.ui.components.NetLockerCard
@@ -265,6 +267,33 @@ fun AppDetailsScreen(
             }
         }
 
+        // Blocked attempts today — only meaningful for an app the rules actually restrict.
+        val blocked by viewModel.blockedToday.collectAsState()
+        if (!rule.isEffectivelyOpen) {
+            NetLockerCard(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Block, contentDescription = null, tint = colors.blocked, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Blocked today", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        val count = blocked?.count ?: 0
+                        Text(
+                            when {
+                                !firewall.isActive && count == 0 -> "The firewall is off, so nothing is being blocked."
+                                count == 0 -> "No connection attempts blocked yet today."
+                                else -> blockedTodayLabel(count) + (blocked?.lastBlockedAt?.let { " · last at ${formatClock(it)}" } ?: "")
+                            },
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+
         // Today's usage (internet)
         val usage by viewModel.usage.collectAsState()
         var refreshKey by remember { mutableIntStateOf(0) }
@@ -406,3 +435,6 @@ private fun AccessRow(
         )
     }
 }
+
+private fun formatClock(epochMillis: Long): String =
+    java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(epochMillis))

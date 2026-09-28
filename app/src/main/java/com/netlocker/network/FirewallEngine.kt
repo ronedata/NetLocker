@@ -59,6 +59,9 @@ class FirewallEngine(
     private val connectionOwnerResolver: ConnectionOwnerResolver,
     private val protectSocket: (java.net.Socket) -> Boolean,
     private val protectDatagramSocket: (DatagramSocket) -> Boolean,
+    /** Told about each flow the rules blocked: (packageName, flowKey). Only called when the
+     *  owning app was identified — flows that can't be attributed aren't counted for anyone. */
+    private val onBlocked: (packageName: String, flowKey: String) -> Unit = { _, _ -> },
 ) {
     private val udpSessions = ConcurrentHashMap<SessionKey, UdpNatSession>()
     private val tcpSessions = ConcurrentHashMap<SessionKey, TcpNatSession>()
@@ -230,7 +233,13 @@ class FirewallEngine(
             else -> null // required transport not currently up, or fully blocked
         }
         Logger.d(TAG, "DECISION: uid=$uid dest=$destination rule=$rule wifiNet=${snapshot.wifi != null} cellNet=${snapshot.cellular != null} -> ${if (network != null) "ALLOW via $network" else "DROP"}")
-        network ?: return null
+        if (network == null) {
+            // Count only what the user's rules blocked — not the fail-closed drop of an app
+            // that should have bypassed the tunnel. Same source port + destination = the
+            // same attempt being retried (see AttemptDeduper).
+            if (!rule.isEffectivelyOpen) onBlocked(rule.packageName, "$protocol/$sourcePort/$destination")
+            return null
+        }
 
         return FlowDecision(uid, network)
     }

@@ -32,6 +32,15 @@ class PreferencesManager(private val context: Context) {
         val AUTO_REFRESH = booleanPreferencesKey("auto_refresh")
         val MINIMAL_NOTIFICATION = booleanPreferencesKey("minimal_notification")
         val TEXT_SIZE = stringPreferencesKey("text_size")
+        val AUTO_START_ON_BOOT = booleanPreferencesKey("auto_start_on_boot")
+    }
+
+    /** Off by default: the firewall only restarts by itself after a reboot/update if the
+     *  user opted in (see network/BootReceiver). */
+    val autoStartOnBoot: Flow<Boolean> = context.dataStore.data.map { it[Keys.AUTO_START_ON_BOOT] ?: false }
+
+    suspend fun setAutoStartOnBoot(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.AUTO_START_ON_BOOT] = enabled }
     }
 
     val textSize: Flow<TextSize> = context.dataStore.data.map { prefs ->
