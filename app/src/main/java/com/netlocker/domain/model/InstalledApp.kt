@@ -2,6 +2,13 @@ package com.netlocker.domain.model
 
 import android.graphics.drawable.Drawable
 
+/** Coarse app grouping used by the Apps tab category chips. */
+enum class AppCategory {
+    GAME,
+    SOCIAL,
+    OTHER,
+}
+
 /**
  * A single installed application as shown in the app list / details screen.
  *
@@ -17,4 +24,5 @@ data class InstalledApp(
     val versionName: String?,
     val isSystemApp: Boolean,
     val icon: Drawable?,
+    val category: AppCategory = AppCategory.OTHER,
 )

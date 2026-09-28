@@ -10,7 +10,10 @@ import com.netlocker.domain.repository.InstalledAppRepository
 import com.netlocker.domain.repository.NetworkRuleRepository
 import com.netlocker.domain.repository.UpdateRepository
 import com.netlocker.domain.usecase.ObserveAppWithRuleUseCase
+import com.netlocker.domain.usecase.DeleteRuleUseCase
 import com.netlocker.domain.usecase.ObserveAppsWithRulesUseCase
+import com.netlocker.domain.usecase.ObserveRulesWithAppsUseCase
+import com.netlocker.domain.usecase.SetRuleEnabledUseCase
 import com.netlocker.domain.usecase.UpdateNetworkRuleUseCase
 import com.netlocker.network.ConnectionOwnerResolver
 import com.netlocker.network.FirewallController
@@ -61,6 +64,16 @@ object ServiceLocator {
     }
     val updateNetworkRuleUseCase by lazy {
         UpdateNetworkRuleUseCase(networkRuleRepository, firewallController)
+    }
+
+    val observeRulesWithAppsUseCase by lazy {
+        ObserveRulesWithAppsUseCase(installedAppRepository, networkRuleRepository)
+    }
+    val setRuleEnabledUseCase by lazy {
+        SetRuleEnabledUseCase(networkRuleRepository, firewallController)
+    }
+    val deleteRuleUseCase by lazy {
+        DeleteRuleUseCase(networkRuleRepository, firewallController)
     }
 
     val updateRepository: UpdateRepository by lazy {

@@ -39,8 +39,8 @@ android {
         // per-app packet attribution cannot be done without root (see README).
         minSdk = 29
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -101,9 +101,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    // Every icon used (ArrowBack, Check, Close, Search, Settings) lives in the core
-    // icon set that ships with material3 already — material-icons-extended (a much
-    // larger artifact) is deliberately not added (spec §26: no unnecessary deps).
+    // The redesigned UI needs icons outside the core set (Wifi, SignalCellularAlt, Shield,
+    // SportsEsports, ...). The extended set is large, but release builds run R8 and only
+    // the icons actually referenced end up in the APK.
+    implementation(libs.androidx.compose.material.icons.extended)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.androidx.navigation.compose)

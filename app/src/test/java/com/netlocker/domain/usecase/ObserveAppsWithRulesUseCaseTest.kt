@@ -28,6 +28,12 @@ private class FakeNetworkRuleRepository(initial: Map<String, NetworkRule>) : Net
     override suspend fun setRule(packageName: String, wifiAllowed: Boolean, mobileDataAllowed: Boolean) {
         rules.value = rules.value + (packageName to NetworkRule(packageName, wifiAllowed, mobileDataAllowed))
     }
+    override suspend fun setEnabled(packageName: String, enabled: Boolean) {
+        rules.value[packageName]?.let { rules.value = rules.value + (packageName to it.copy(isEnabled = enabled)) }
+    }
+    override suspend fun deleteRule(packageName: String) {
+        rules.value = rules.value - packageName
+    }
 }
 
 class ObserveAppsWithRulesUseCaseTest {

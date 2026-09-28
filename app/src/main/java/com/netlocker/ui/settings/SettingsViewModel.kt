@@ -27,6 +27,7 @@ data class SettingsUiState(
     val theme: AppTheme = AppTheme.SYSTEM,
     val showSystemApps: Boolean = false,
     val autoRefresh: Boolean = true,
+    val minimalNotification: Boolean = false,
 )
 
 /** Never assumes success — mirrors exactly what the GitHub check / download actually
@@ -51,15 +52,18 @@ class SettingsViewModel(
         preferencesManager.theme,
         preferencesManager.showSystemApps,
         preferencesManager.autoRefresh,
-    ) { theme, showSystemApps, autoRefresh ->
-        SettingsUiState(theme, showSystemApps, autoRefresh)
+        preferencesManager.minimalNotification,
+    ) { theme, showSystemApps, autoRefresh, minimalNotification ->
+        SettingsUiState(theme, showSystemApps, autoRefresh, minimalNotification)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
     fun setTheme(theme: AppTheme) = viewModelScope.launch { preferencesManager.setTheme(theme) }
     fun setShowSystemApps(show: Boolean) = viewModelScope.launch { preferencesManager.setShowSystemApps(show) }
     fun setAutoRefresh(enabled: Boolean) = viewModelScope.launch { preferencesManager.setAutoRefresh(enabled) }
 
-    private val _updateState = MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
+    fun setMinimalNotification(enabled: Boolean) = viewModelScope.launch { preferencesManager.setMinimalNotification(enabled) }
+
+    private val _updateState =MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
     val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
 
     private val _installIntentRequests = MutableSharedFlow<Intent>(extraBufferCapacity = 1)

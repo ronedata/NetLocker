@@ -20,4 +20,10 @@ interface AppRuleDao {
 
     @Upsert
     suspend fun upsert(rule: AppRuleEntity)
+
+    @Query("UPDATE app_network_rules SET isEnabled = :enabled, updatedAt = :now WHERE packageName = :packageName")
+    suspend fun setEnabled(packageName: String, enabled: Boolean, now: Long)
+
+    @Query("DELETE FROM app_network_rules WHERE packageName = :packageName")
+    suspend fun delete(packageName: String)
 }

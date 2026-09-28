@@ -223,9 +223,10 @@ class FirewallEngine(
             // in NetLockerVpnService, so a packet should never reach this branch. If it
             // somehow does (e.g. a VpnService exclusion-list bug), fail closed (drop)
             // rather than risk silently widening access beyond what was configured.
-            rule.wifiAllowed && rule.mobileDataAllowed -> null
-            rule.wifiAllowed && snapshot.wifi != null -> snapshot.wifi
-            rule.mobileDataAllowed && snapshot.cellular != null -> snapshot.cellular
+            // (A *disabled* rule reads as effectively open too — it isn't enforced.)
+            rule.isEffectivelyOpen -> null
+            rule.effectiveWifiAllowed && snapshot.wifi != null -> snapshot.wifi
+            rule.effectiveMobileDataAllowed && snapshot.cellular != null -> snapshot.cellular
             else -> null // required transport not currently up, or fully blocked
         }
         Logger.d(TAG, "DECISION: uid=$uid dest=$destination rule=$rule wifiNet=${snapshot.wifi != null} cellNet=${snapshot.cellular != null} -> ${if (network != null) "ALLOW via $network" else "DROP"}")

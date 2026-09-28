@@ -15,6 +15,16 @@ interface NetworkRuleRepository {
 
     suspend fun getRuleOnce(packageName: String): NetworkRule
 
-    /** Persists a rule. Survives process death and device reboot (Room + disk). */
+    /**
+     * Creates or updates a rule and marks it **enabled** (changing an app's access is an
+     * explicit request to enforce it, so a previously paused rule is resumed). Preserves
+     * the rule's original creation time. Survives process death and device reboot.
+     */
     suspend fun setRule(packageName: String, wifiAllowed: Boolean, mobileDataAllowed: Boolean)
+
+    /** Pauses/resumes an existing rule without touching its saved Wi-Fi/Mobile values. */
+    suspend fun setEnabled(packageName: String, enabled: Boolean)
+
+    /** Removes the rule entirely — the app returns to default (fully allowed). */
+    suspend fun deleteRule(packageName: String)
 }

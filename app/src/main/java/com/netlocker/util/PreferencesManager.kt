@@ -20,6 +20,15 @@ class PreferencesManager(private val context: Context) {
         val THEME = stringPreferencesKey("theme")
         val SHOW_SYSTEM_APPS = booleanPreferencesKey("show_system_apps")
         val AUTO_REFRESH = booleanPreferencesKey("auto_refresh")
+        val MINIMAL_NOTIFICATION = booleanPreferencesKey("minimal_notification")
+    }
+
+    /** Off by default: the ordinary (low-importance) firewall notification. On = the
+     *  smallest notification Android allows — see network/FirewallNotificationSpec. */
+    val minimalNotification: Flow<Boolean> = context.dataStore.data.map { it[Keys.MINIMAL_NOTIFICATION] ?: false }
+
+    suspend fun setMinimalNotification(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.MINIMAL_NOTIFICATION] = enabled }
     }
 
     val theme: Flow<AppTheme> = context.dataStore.data.map { prefs ->

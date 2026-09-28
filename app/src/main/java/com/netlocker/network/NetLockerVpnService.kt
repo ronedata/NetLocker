@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetAddress
 
 /**
@@ -52,6 +54,10 @@ class NetLockerVpnService : VpnService() {
      *  time the tunnel was last (re)established) — see [reconfigureAndEstablish]. */
     private var excludedPackages: Set<String> = emptySet()
     private var restartJob: Job? = null
+
+    /** Which notification style is currently posted (see [FirewallNotificationSpec]). */
+    @Volatile private var minimalNotification = false
+    private var notificationPrefJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -78,10 +84,11 @@ class NetLockerVpnService : VpnService() {
         if (tunFd != null) return // already running
 
         try {
+            minimalNotification = readMinimalPreference()
             ServiceCompat.startForeground(
                 this,
                 NOTIFICATION_ID,
-                buildNotification(),
+                buildNotification(minimalNotification),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
             )
         } catch (e: Exception) {
@@ -93,6 +100,7 @@ class NetLockerVpnService : VpnService() {
 
         ruleIndex.start(serviceScope)
         transportMonitor.start()
+        watchNotificationPreference()
 
         serviceScope.launch {
             reconfigureAndEstablish()
@@ -111,7 +119,7 @@ class NetLockerVpnService : VpnService() {
             .map { it.packageName }
             .filter { pkg ->
                 val rule = rules[pkg]
-                rule == null || (rule.wifiAllowed && rule.mobileDataAllowed)
+                rule == null || rule.isEffectivelyOpen
             }
             .toSet()
 
@@ -172,7 +180,7 @@ class NetLockerVpnService : VpnService() {
         // list Builder was configured with is now stale and the tunnel must be rebuilt.
         serviceScope.launch {
             val rule = networkRuleRepository.getRuleOnce(packageName)
-            val shouldBeExcluded = rule.wifiAllowed && rule.mobileDataAllowed
+            val shouldBeExcluded = rule.isEffectivelyOpen
             val wasExcluded = packageName in excludedPackages
             if (shouldBeExcluded != wasExcluded) {
                 restartJob?.cancel()
@@ -209,39 +217,77 @@ class NetLockerVpnService : VpnService() {
         super.onDestroy()
     }
 
-    private fun buildNotification(): Notification {
-        val channelId = ensureNotificationChannel()
+    /** Reads the "Minimal notification" setting. Bounded: the notification must be posted
+     *  within seconds of startForegroundService(), and a preference read is normally a
+     *  few milliseconds — if it ever stalls, fall back to the standard notification. */
+    private fun readMinimalPreference(): Boolean = runBlocking {
+        withTimeoutOrNull(PREFERENCE_READ_TIMEOUT_MS) {
+            ServiceLocator.preferencesManager.minimalNotification.first()
+        } ?: false
+    }
+
+    private fun buildNotification(minimal: Boolean): Notification {
+        val channelId = ensureNotificationChannel(minimal)
         val contentIntent = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        return NotificationCompat.Builder(this, channelId)
+        val builder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(getString(R.string.vpn_notification_title))
-            .setContentText(getString(R.string.vpn_notification_text))
             .setOngoing(true)
             .setContentIntent(contentIntent)
-            .build()
+        return if (minimal) {
+            // Smallest presentation we can request: silent, no timestamp, hidden on the
+            // lock screen. It cannot be removed — Android requires it while the firewall
+            // runs — and Android may still show its status-bar icon (see FirewallNotificationSpec).
+            builder
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setSilent(true)
+                .setShowWhen(false)
+                .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+                .build()
+        } else {
+            builder.setContentText(getString(R.string.vpn_notification_text)).build()
+        }
     }
 
-    private fun ensureNotificationChannel(): String {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(NotificationManager::class.java)
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.vpn_notification_channel_name),
-                NotificationManager.IMPORTANCE_LOW,
-            )
-            manager.createNotificationChannel(channel)
+    private fun ensureNotificationChannel(minimal: Boolean): String {
+        val channelId = FirewallNotificationSpec.channelId(minimal)
+        val channel = NotificationChannel(
+            channelId,
+            getString(if (minimal) R.string.vpn_notification_channel_name_minimal else R.string.vpn_notification_channel_name),
+            FirewallNotificationSpec.importance(minimal),
+        ).apply {
+            if (minimal) {
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
+            }
         }
-        return CHANNEL_ID
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        return channelId
+    }
+
+    /** Re-posts the running notification when the user flips "Minimal notification" — so
+     *  the change applies immediately, without restarting the firewall. */
+    private fun watchNotificationPreference() {
+        notificationPrefJob?.cancel()
+        notificationPrefJob = serviceScope.launch {
+            ServiceLocator.preferencesManager.minimalNotification.collect { minimal ->
+                if (minimal != minimalNotification) {
+                    minimalNotification = minimal
+                    getSystemService(NotificationManager::class.java)
+                        .notify(NOTIFICATION_ID, buildNotification(minimal))
+                }
+            }
+        }
     }
 
     companion object {
         private const val TAG = "NetLockerVpnService"
         const val ACTION_STOP = "com.netlocker.action.STOP_FIREWALL"
         private const val NOTIFICATION_ID = 1
-        private const val CHANNEL_ID = "netlocker_firewall_status"
+        private const val PREFERENCE_READ_TIMEOUT_MS = 1_500L
 
         // Arbitrary, unlikely-to-collide private subnet for the tun interface itself.
         private const val TUNNEL_ADDRESS = "10.111.222.1"

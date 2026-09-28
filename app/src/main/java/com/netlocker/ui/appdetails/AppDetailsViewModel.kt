@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.netlocker.domain.model.AppWithRule
+import com.netlocker.domain.usecase.DeleteRuleUseCase
 import com.netlocker.domain.usecase.ObserveAppWithRuleUseCase
 import com.netlocker.domain.usecase.UpdateNetworkRuleUseCase
 import com.netlocker.util.ServiceLocator
@@ -18,6 +19,7 @@ class AppDetailsViewModel(
     private val packageName: String,
     observeAppWithRuleUseCase: ObserveAppWithRuleUseCase,
     private val updateNetworkRuleUseCase: UpdateNetworkRuleUseCase,
+    private val deleteRuleUseCase: DeleteRuleUseCase,
 ) : ViewModel() {
 
     val appWithRule: StateFlow<AppWithRule?> = observeAppWithRuleUseCase(packageName)
@@ -32,6 +34,11 @@ class AppDetailsViewModel(
         viewModelScope.launch { updateNetworkRuleUseCase(packageName, currentWifiAllowed, mobileDataAllowed) }
     }
 
+    /** Removes NetLocker's rule for this app — it returns to default (fully allowed). */
+    fun resetToDefault() {
+        viewModelScope.launch { deleteRuleUseCase(packageName) }
+    }
+
     companion object {
         fun factory(packageName: String) = viewModelFactory {
             initializer {
@@ -39,6 +46,7 @@ class AppDetailsViewModel(
                     packageName,
                     ServiceLocator.observeAppWithRuleUseCase,
                     ServiceLocator.updateNetworkRuleUseCase,
+                    ServiceLocator.deleteRuleUseCase,
                 )
             }
         }

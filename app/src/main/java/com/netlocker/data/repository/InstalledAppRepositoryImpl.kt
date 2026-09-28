@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import com.netlocker.domain.model.AppCategory
 import com.netlocker.domain.model.InstalledApp
 import com.netlocker.domain.repository.InstalledAppRepository
 import com.netlocker.util.Logger
@@ -55,9 +56,18 @@ class InstalledAppRepositoryImpl(private val context: Context) : InstalledAppRep
      *  applies the `includeSystemApps` filter per-subscriber over this one shared scan. */
     private val rawApps = MutableStateFlow<List<InstalledApp>>(emptyList())
 
+    private val _isLoaded = MutableStateFlow(false)
+
+    /** Stays false until the first full scan finishes, so the UI can show a loading
+     *  state instead of an empty list that looks like "no apps installed". */
+    override val isLoaded: Flow<Boolean> = _isLoaded
+
     init {
         combine(manualRefreshTrigger, packageChangeEvents()) { _, _ -> Unit }
-            .onEach { rawApps.value = queryInstalledApps() }
+            .onEach {
+                rawApps.value = queryInstalledApps()
+                _isLoaded.value = true
+            }
             .launchIn(repositoryScope)
     }
 
@@ -88,9 +98,19 @@ class InstalledAppRepositoryImpl(private val context: Context) : InstalledAppRep
         versionName = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull(),
         isSystemApp = isSystemApp(),
         icon = runCatching { packageManager.getApplicationIcon(this) }.getOrNull(),
+        category = appCategory(),
     )
 
     private fun ApplicationInfo.isSystemApp(): Boolean = (flags and ApplicationInfo.FLAG_SYSTEM) != 0
+
+    /** Uses only what the app itself declares (its manifest category / isGame flag) —
+     *  no guessing by name. Apps that declare nothing land in [AppCategory.OTHER]. */
+    @Suppress("DEPRECATION") // FLAG_IS_GAME is deprecated but still set by apps that declare isGame.
+    private fun ApplicationInfo.appCategory(): AppCategory = when {
+        (flags and ApplicationInfo.FLAG_IS_GAME) != 0 || category == ApplicationInfo.CATEGORY_GAME -> AppCategory.GAME
+        category == ApplicationInfo.CATEGORY_SOCIAL -> AppCategory.SOCIAL
+        else -> AppCategory.OTHER
+    }
 
     /** Emits whenever an app is installed, updated or removed, so the list stays fresh
      *  without the user needing to manually refresh (spec §4/§22 auto refresh). */

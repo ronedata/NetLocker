@@ -22,6 +22,12 @@ private class RecordingNetworkRuleRepository : NetworkRuleRepository {
     override suspend fun setRule(packageName: String, wifiAllowed: Boolean, mobileDataAllowed: Boolean) {
         saved[packageName] = NetworkRule(packageName, wifiAllowed, mobileDataAllowed)
     }
+    override suspend fun setEnabled(packageName: String, enabled: Boolean) {
+        saved[packageName]?.let { saved[packageName] = it.copy(isEnabled = enabled) }
+    }
+    override suspend fun deleteRule(packageName: String) {
+        saved.remove(packageName)
+    }
 }
 
 private class FakeFirewallController : FirewallController {

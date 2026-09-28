@@ -14,10 +14,28 @@ Android/Samsung, and why), because that's what the rest of the code is built aro
 NetLocker lets you individually allow/block **Wi-Fi** and **Mobile Data** for every
 installed app, without rooting the phone or installing Shizuku/ADB tooling. You get:
 
-- A searchable list of installed apps with quick Wi-Fi/Mobile-Data switches
+- **Apps tab** — every installed app with quick Wi-Fi/Mobile-Data switches, category
+  chips (All / Games / Social / System), search, and a loading state while the first scan
+  of installed apps finishes
+- **Rules tab** — only the apps you have a rule for, with status filters (Blocked /
+  Wi-Fi Only / Mobile Only / Allowed), search, and per-rule Edit / Disable / Delete. Add a
+  rule from a picker of apps that don't have one yet
 - A details screen per app showing its exact current access state
 - Rules that persist across app restarts and device reboots
-- Honest status reporting — a rule is never shown as "applied" unless it actually is
+- Honest status reporting — a rule is never shown as "applied" unless it actually is: the
+  firewall banner and each rule's "Enforced" / "Not enforced" label come from the real VPN
+  state, not from what is saved
+
+**Apps and Rules share one Room table**, so a switch flipped on either tab appears on the
+other immediately. A rule exists for an app if it has a row; deleting the row returns the
+app to default (fully allowed). **Disabling** a rule keeps its saved Wi-Fi/Mobile values
+but stops enforcing it — the app behaves exactly as if it had no rule (verified on a real
+device: a disabled "Blocked" rule produced zero firewall decisions and the app went
+online; re-enabling it resumed dropping its traffic).
+
+The database is at **schema v2** (adds `isEnabled` and `createdAt`). Upgrading from v1
+keeps every saved rule via an explicit migration — there is deliberately no destructive
+fallback, since silently wiping a firewall's rules would be a security regression.
 
 ## 2. Why this needs a local VPN (read this before anything else)
 

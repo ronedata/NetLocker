@@ -3,6 +3,7 @@
     <string name="app_name">NetLocker</string>
 
     <string name="vpn_notification_channel_name">Firewall status</string>
+    <string name="vpn_notification_channel_name_minimal">Firewall status (minimal)</string>
     <string name="vpn_notification_title">NetLocker firewall is active</string>
     <string name="vpn_notification_text">Enforcing your per-app Wi-Fi / mobile data rules</string>
 

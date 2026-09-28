@@ -19,15 +19,34 @@ class NetworkRuleRepositoryImpl(private val dao: AppRuleDao) : NetworkRuleReposi
         dao.getOne(packageName)?.toDomain() ?: NetworkRule.default(packageName)
 
     override suspend fun setRule(packageName: String, wifiAllowed: Boolean, mobileDataAllowed: Boolean) {
+        val now = System.currentTimeMillis()
+        val existing = dao.getOne(packageName)
         dao.upsert(
             AppRuleEntity(
                 packageName = packageName,
                 wifiAllowed = wifiAllowed,
                 mobileDataAllowed = mobileDataAllowed,
-                updatedAt = System.currentTimeMillis(),
+                updatedAt = now,
+                isEnabled = true,
+                createdAt = existing?.createdAt?.takeIf { it > 0L } ?: now,
             ),
         )
     }
 
-    private fun AppRuleEntity.toDomain() = NetworkRule(packageName, wifiAllowed, mobileDataAllowed)
+    override suspend fun setEnabled(packageName: String, enabled: Boolean) {
+        dao.setEnabled(packageName, enabled, System.currentTimeMillis())
+    }
+
+    override suspend fun deleteRule(packageName: String) {
+        dao.delete(packageName)
+    }
+
+    private fun AppRuleEntity.toDomain() = NetworkRule(
+        packageName = packageName,
+        wifiAllowed = wifiAllowed,
+        mobileDataAllowed = mobileDataAllowed,
+        isEnabled = isEnabled,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+    )
 }
