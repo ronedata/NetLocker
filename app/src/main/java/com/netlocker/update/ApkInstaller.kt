@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import com.netlocker.util.Logger
 import kotlinx.coroutines.delay
 
 /**
@@ -54,12 +55,13 @@ class ApkInstaller(private val context: Context) {
                         DownloadManager.STATUS_SUCCESSFUL -> return DownloadOutcome.Success
                         DownloadManager.STATUS_FAILED -> {
                             val reasonIndex = it.getColumnIndex(DownloadManager.COLUMN_REASON)
-                            return DownloadOutcome.Failed("Download failed (reason code ${it.getInt(reasonIndex)})")
+                            Logger.w("ApkInstaller", "download failed, reason code ${it.getInt(reasonIndex)}")
+                            return DownloadOutcome.Failed("The update couldn't be downloaded. Please check your internet connection and try again.")
                         }
                         else -> Unit // still running/pending — keep polling
                     }
                 } else {
-                    return DownloadOutcome.Failed("Download disappeared from the download queue.")
+                    return DownloadOutcome.Failed("The update download was cancelled. Please try again.")
                 }
             }
             delay(POLL_INTERVAL_MS)

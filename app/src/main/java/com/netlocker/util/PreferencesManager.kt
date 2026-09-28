@@ -12,6 +12,16 @@ private val Context.dataStore by preferencesDataStore(name = "netlocker_settings
 
 enum class AppTheme { SYSTEM, LIGHT, DARK }
 
+/** In-app text size. [scale] replaces the phone's font-size setting for NetLocker's own
+ *  screens; [SYSTEM] (null scale) follows the phone's setting instead. The default is
+ *  [DEFAULT] — a fixed 1.0 — so an enlarged system font doesn't make the app oversized. */
+enum class TextSize(val scale: Float?) {
+    SMALL(0.85f),
+    DEFAULT(1.0f),
+    LARGE(1.15f),
+    SYSTEM(null),
+}
+
 /** Persists the Settings-screen preferences (spec §22) — separate from network rules,
  *  which live in Room (see data/local); these are simple app-behavior toggles. */
 class PreferencesManager(private val context: Context) {
@@ -21,6 +31,15 @@ class PreferencesManager(private val context: Context) {
         val SHOW_SYSTEM_APPS = booleanPreferencesKey("show_system_apps")
         val AUTO_REFRESH = booleanPreferencesKey("auto_refresh")
         val MINIMAL_NOTIFICATION = booleanPreferencesKey("minimal_notification")
+        val TEXT_SIZE = stringPreferencesKey("text_size")
+    }
+
+    val textSize: Flow<TextSize> = context.dataStore.data.map { prefs ->
+        prefs[Keys.TEXT_SIZE]?.let { runCatching { TextSize.valueOf(it) }.getOrNull() } ?: TextSize.DEFAULT
+    }
+
+    suspend fun setTextSize(size: TextSize) {
+        context.dataStore.edit { it[Keys.TEXT_SIZE] = size.name }
     }
 
     /** Off by default: the ordinary (low-importance) firewall notification. On = the

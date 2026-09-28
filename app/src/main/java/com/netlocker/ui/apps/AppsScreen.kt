@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,15 +44,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.delay
 import com.netlocker.domain.model.AppWithRule
 import com.netlocker.ui.components.AppIconImage
 import com.netlocker.ui.components.AppListLoading
@@ -79,30 +74,17 @@ fun AppsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val firewall = rememberFirewallActions()
-    val searchFocus = remember { FocusRequester() }
-    val listState = rememberLazyListState()
     var overflowOpen by remember { mutableStateOf(false) }
     var sortOpen by remember { mutableStateOf(false) }
-    var focusSearchRequests by remember { mutableStateOf(0) }
 
-    // The search field lives inside the list (so it scrolls away with the banner and
-    // chips, leaving the whole screen for apps). Tapping the header's search icon
-    // scrolls back to it first, then focuses it.
-    LaunchedEffect(focusSearchRequests) {
-        if (focusSearchRequests > 0) {
-            listState.scrollToItem(0)
-            delay(120)
-            runCatching { searchFocus.requestFocus() }
-        }
-    }
-
+    // Header, firewall banner, category chips and search stay fixed at the top; only the
+    // app list below them scrolls.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
     ) {
         AppsHeader(
-            onSearch = { focusSearchRequests++ },
             onSettings = onOpenSettings,
             overflow = {
                 Box {
@@ -117,50 +99,48 @@ fun AppsScreen(
             },
         )
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+        Column(
+            modifier = Modifier.padding(top = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            item(key = "firewall-banner") { FirewallStatusBanner(firewall) }
+            FirewallStatusBanner(firewall)
 
-            item(key = "category-chips") {
-                CategoryChips(
-                    selected = state.category,
-                    counts = state.counts,
-                    // Counts would read "0" while the first scan is still running — hide them.
-                    showCounts = !state.isLoading,
-                    onSelect = viewModel::onCategorySelected,
+            CategoryChips(
+                selected = state.category,
+                counts = state.counts,
+                // Counts would read "0" while the first scan is still running — hide them.
+                showCounts = !state.isLoading,
+                onSelect = viewModel::onCategorySelected,
+            )
+
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NetLockerSearchField(
+                    query = state.query,
+                    onQueryChange = viewModel::onQueryChange,
+                    placeholder = "Search apps...",
+                    modifier = Modifier.weight(1f),
                 )
-            }
-
-            item(key = "search-row") {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NetLockerSearchField(
-                        query = state.query,
-                        onQueryChange = viewModel::onQueryChange,
-                        placeholder = "Search apps...",
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(searchFocus),
-                    )
-                    Box {
-                        CircleIconButton(Icons.Filled.Tune, "Sort apps", onClick = { sortOpen = true }, size = 52.dp)
-                        DropdownMenu(expanded = sortOpen, onDismissRequest = { sortOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text(if (state.sort == AppSort.NAME) "✓ Name (A–Z)" else "Name (A–Z)") },
-                                onClick = { sortOpen = false; viewModel.onSortSelected(AppSort.NAME) },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(if (state.sort == AppSort.RESTRICTED_FIRST) "✓ Restricted first" else "Restricted first") },
-                                onClick = { sortOpen = false; viewModel.onSortSelected(AppSort.RESTRICTED_FIRST) },
-                            )
-                        }
+                Box {
+                    CircleIconButton(Icons.Filled.Tune, "Sort apps", onClick = { sortOpen = true }, size = 52.dp)
+                    DropdownMenu(expanded = sortOpen, onDismissRequest = { sortOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(if (state.sort == AppSort.NAME) "✓ Name (A–Z)" else "Name (A–Z)") },
+                            onClick = { sortOpen = false; viewModel.onSortSelected(AppSort.NAME) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (state.sort == AppSort.RESTRICTED_FIRST) "✓ Restricted first" else "Restricted first") },
+                            onClick = { sortOpen = false; viewModel.onSortSelected(AppSort.RESTRICTED_FIRST) },
+                        )
                     }
                 }
             }
+        }
 
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 10.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             when {
                 state.isLoading -> item(key = "loading") { AppListLoading() }
                 state.apps.isEmpty() -> item(key = "empty") {
@@ -185,7 +165,6 @@ fun AppsScreen(
 
 @Composable
 private fun AppsHeader(
-    onSearch: () -> Unit,
     onSettings: () -> Unit,
     overflow: @Composable () -> Unit,
 ) {
@@ -215,7 +194,6 @@ private fun AppsHeader(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        CircleIconButton(Icons.Filled.Search, "Search apps", onClick = onSearch)
         CircleIconButton(Icons.Filled.Settings, "Open settings", onClick = onSettings)
         overflow()
     }

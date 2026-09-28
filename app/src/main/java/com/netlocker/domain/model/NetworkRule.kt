@@ -77,4 +77,7 @@ enum class RuleStatus {
 data class AppWithRule(
     val app: InstalledApp,
     val rule: NetworkRule,
+    /** True when the user has a saved rule for this app (it appears in the Rules tab);
+     *  false when [rule] is just the fully-allowed default. */
+    val hasRule: Boolean = false,
 )

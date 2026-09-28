@@ -8,6 +8,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,23 +25,31 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BatteryStd
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,9 +62,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netlocker.domain.model.NetworkAccessState
 import com.netlocker.ui.components.AppIconImage
@@ -64,7 +77,9 @@ import com.netlocker.ui.components.allowedStyle
 import com.netlocker.ui.components.rememberFirewallActions
 import com.netlocker.ui.components.style
 import com.netlocker.ui.theme.netLocker
+import com.netlocker.util.formatBytes
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AppDetailsScreen(
     packageName: String,
@@ -82,7 +97,7 @@ fun AppDetailsScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(
             modifier = Modifier
@@ -97,6 +112,7 @@ fun AppDetailsScreen(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
             Box {
@@ -136,33 +152,67 @@ fun AppDetailsScreen(
         val mobile = rule.effectiveMobileDataAllowed
         val colors = MaterialTheme.netLocker
 
-        // Hero
-        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        // Compact hero: icon beside the name, instead of a tall centred block.
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(26.dp))
-                    .border(1.dp, colors.cardBorderStrong, RoundedCornerShape(26.dp))
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, colors.cardBorderStrong, RoundedCornerShape(16.dp))
                     .background(colors.card)
-                    .padding(10.dp),
-            ) { AppIconImage(current.app.icon, size = 88.dp, cornerRadius = 20.dp) }
-            Spacer(Modifier.height(12.dp))
-            Text(current.app.label, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
-            Text(current.app.packageName, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    .padding(6.dp),
+            ) { AppIconImage(current.app.icon, size = 48.dp, cornerRadius = 12.dp) }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(current.app.label, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    current.app.packageName,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             current.app.versionName?.let {
-                Spacer(Modifier.height(8.dp))
                 StatusPill("v$it", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f))
+            }
+        }
+
+        // Rules membership: one tap adds the app to the Rules tab; once added it says so.
+        if (current.hasRule) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colors.allowedContainer)
+                    .padding(start = 12.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = colors.allowed, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("In your Rules", color = colors.allowed, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = viewModel::resetToDefault) { Text("Remove", fontSize = 13.sp) }
+            }
+        } else {
+            Button(
+                onClick = { viewModel.addToRules(wifi, mobile) },
+                modifier = Modifier.fillMaxWidth().height(44.dp),
+                shape = RoundedCornerShape(14.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Add to Rules", fontWeight = FontWeight.SemiBold)
             }
         }
 
         // Network Access
         NetLockerCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeader(Icons.Filled.Wifi, colors.wifi, "Network Access", "Control this app's network connectivity.")
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionHeader(Icons.Filled.Wifi, colors.wifi, "Network Access")
                 AccessRow(
                     icon = Icons.Filled.Wifi,
                     tint = colors.wifi,
                     title = "Wi-Fi",
-                    subtitle = "Allow this app to access internet via Wi-Fi.",
                     checked = wifi,
                     onCheckedChange = { viewModel.setWifiAllowed(it, mobile) },
                 )
@@ -170,7 +220,6 @@ fun AppDetailsScreen(
                     icon = Icons.Filled.SignalCellularAlt,
                     tint = colors.mobile,
                     title = "Mobile Data",
-                    subtitle = "Allow this app to access internet via mobile data.",
                     checked = mobile,
                     onCheckedChange = { viewModel.setMobileDataAllowed(wifi, it) },
                 )
@@ -181,32 +230,29 @@ fun AppDetailsScreen(
         val state = rule.accessState
         val style = state.style()
         NetLockerCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeader(Icons.Filled.Language, colors.wifi, "Internet Access", "Current network access status for this app.")
-                Column(
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(style.container)
-                        .border(1.dp, style.color.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                        .border(1.dp, style.color.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(style.icon, contentDescription = null, tint = style.color, modifier = Modifier.size(38.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(style.label, color = style.color, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text(state.description(), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                    Icon(style.icon, contentDescription = null, tint = style.color, modifier = Modifier.size(28.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(style.label, color = style.color, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(state.description(), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        allowedStyle(wifi).let {
-                            StatusPill("Wi-Fi · ${if (wifi) "Allowed" else "Blocked"}", it.color, it.container, icon = Icons.Filled.Wifi)
-                        }
-                        allowedStyle(mobile).let {
-                            StatusPill("Mobile Data · ${if (mobile) "Allowed" else "Blocked"}", it.color, it.container, icon = Icons.Filled.SignalCellularAlt)
-                        }
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    allowedStyle(wifi).let {
+                        StatusPill("Wi-Fi · ${if (wifi) "Allowed" else "Blocked"}", it.color, it.container, icon = Icons.Filled.Wifi)
+                    }
+                    allowedStyle(mobile).let {
+                        StatusPill("Mobile Data · ${if (mobile) "Allowed" else "Blocked"}", it.color, it.container, icon = Icons.Filled.SignalCellularAlt)
                     }
                 }
                 if (!firewall.isActive && state != NetworkAccessState.ALLOWED) {
@@ -216,6 +262,72 @@ fun AppDetailsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+        }
+
+        // Today's usage (internet)
+        val usage by viewModel.usage.collectAsState()
+        var refreshKey by remember { mutableIntStateOf(0) }
+        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refreshKey++ }
+        LaunchedEffect(current.app.uid, refreshKey) { viewModel.loadUsage(current.app.uid) }
+
+        NetLockerCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionHeader(Icons.Filled.DataUsage, colors.mobile, "Today's usage")
+                when (val u = usage) {
+                    UsageUiState.Loading -> Box(modifier = Modifier.fillMaxWidth().height(36.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                    }
+                    UsageUiState.NeedsAccess -> {
+                        Text(
+                            "Allow \"Usage access\" in Android settings to see how much data this app used. " +
+                                "Nothing leaves your phone.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(
+                            onClick = { context.startActivity(viewModel.usageAccessSettingsIntent()) },
+                            modifier = Modifier.fillMaxWidth().height(40.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                        ) { Text("Allow usage access", fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+                    }
+                    UsageUiState.Unavailable -> Text(
+                        "Data usage couldn't be read on this device right now.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    is UsageUiState.Loaded -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            UsageCell(Icons.Filled.Wifi, colors.wifi, "Wi-Fi", formatBytes(u.usage.wifiBytes), Modifier.weight(1f))
+                            UsageCell(Icons.Filled.SignalCellularAlt, colors.mobile, "Mobile", formatBytes(u.usage.mobileBytes), Modifier.weight(1f))
+                        }
+                        Text("Total today: ${formatBytes(u.usage.totalBytes)}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+
+        // Battery — Android doesn't expose other apps' battery use to apps.
+        NetLockerCard(modifier = Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.BatteryStd, contentDescription = null, tint = colors.allowed, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Battery", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(
+                        "Android doesn't share other apps' battery use with apps.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(Intent(Intent.ACTION_POWER_USAGE_SUMMARY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    modifier = Modifier.height(36.dp),
+                ) { Text("Open", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, softWrap = false) }
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -230,16 +342,31 @@ private fun NetworkAccessState.description(): String = when (this) {
 }
 
 @Composable
-private fun SectionHeader(icon: ImageVector, tint: Color, title: String, subtitle: String) {
+private fun SectionHeader(icon: ImageVector, tint: Color, title: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
-            modifier = Modifier.size(42.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)),
+            modifier = Modifier.size(30.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)),
             contentAlignment = Alignment.Center,
-        ) { Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp)) }
-        Spacer(Modifier.width(12.dp))
+        ) { Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) }
+        Spacer(Modifier.width(10.dp))
+        Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    }
+}
+
+@Composable
+private fun UsageCell(icon: ImageVector, tint: Color, title: String, value: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
         Column {
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
         }
     }
 }
@@ -249,28 +376,28 @@ private fun AccessRow(
     icon: ImageVector,
     tint: Color,
     title: String,
-    subtitle: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-            .border(1.dp, MaterialTheme.netLocker.cardBorder, RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(start = 10.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            modifier = Modifier.size(46.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)),
+            modifier = Modifier.size(32.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)),
             contentAlignment = Alignment.Center,
-        ) { Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp)) }
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        ) { Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            title,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp,
+            modifier = Modifier.weight(1f).padding(end = 8.dp),
+        )
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,

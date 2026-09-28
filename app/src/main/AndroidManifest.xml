@@ -27,6 +27,12 @@
          must approve the system's real install confirmation screen every time. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Lets the App Details screen show how much data an app used today (Android's own
+         network statistics). "Usage access" is a special permission the user grants in
+         system Settings; it is only requested when they open that card's button. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
     <application
         android:name=".NetLockerApplication"
         android:allowBackup="false"

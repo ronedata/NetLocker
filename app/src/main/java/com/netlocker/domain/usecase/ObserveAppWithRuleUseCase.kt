@@ -16,9 +16,9 @@ class ObserveAppWithRuleUseCase(
     operator fun invoke(packageName: String): Flow<AppWithRule> =
         combine(
             installedAppRepository.observeInstalledApps(includeSystemApps = true),
-            networkRuleRepository.observeRule(packageName),
-        ) { apps, rule ->
+            networkRuleRepository.observeRules(),
+        ) { apps, rules ->
             val app = apps.find { it.packageName == packageName } ?: return@combine null
-            AppWithRule(app, rule)
+            AppWithRule(app, rules[packageName] ?: NetworkRule.default(packageName), hasRule = packageName in rules)
         }.mapNotNull { it }
 }

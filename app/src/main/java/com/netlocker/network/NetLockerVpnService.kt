@@ -121,7 +121,11 @@ class NetLockerVpnService : VpnService() {
                 val rule = rules[pkg]
                 rule == null || rule.isEffectivelyOpen
             }
-            .toSet()
+            .toSet() +
+            // NetLocker never appears in its own app list (so it can't firewall itself), which
+            // also means it isn't in `allApps` — without this its own traffic (e.g. the update
+            // check) would be routed through the tunnel it is running.
+            packageName
 
         val builder = Builder()
             .setSession(getString(R.string.app_name))

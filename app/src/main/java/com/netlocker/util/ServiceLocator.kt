@@ -80,4 +80,7 @@ object ServiceLocator {
         GithubUpdateRepositoryImpl(currentVersionName = BuildConfig.VERSION_NAME)
     }
     val apkInstaller: ApkInstaller by lazy { ApkInstaller(appContext) }
+    val appDataUsageReader: com.netlocker.data.usage.AppDataUsageReader by lazy {
+        com.netlocker.data.usage.AppDataUsageReader(appContext)
+    }
 }

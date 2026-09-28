@@ -3,7 +3,10 @@ package com.netlocker.ui.rules
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -382,7 +385,24 @@ fun AddRuleSheet(
                                     .padding(vertical = 8.dp, horizontal = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                AppHeaderRow(candidate, candidate.label, candidate.packageName)
+                                Box(modifier = Modifier.weight(1f)) {
+                                    AppHeaderRow(candidate, candidate.label, candidate.packageName)
+                                }
+                                // One tap: save a rule that turns Wi-Fi AND Mobile Data off for this
+                                // app. The sheet stays open (the app drops out of the list once it
+                                // has a rule) so several apps can be blocked in a row.
+                                OutlinedButton(
+                                    onClick = { onSave(candidate.packageName, false, false) },
+                                    modifier = Modifier
+                                        .padding(start = 8.dp)
+                                        .semantics { contentDescription = "Block ${candidate.label}" },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.netLocker.blocked),
+                                ) {
+                                    Icon(Icons.Filled.Block, contentDescription = null, tint = MaterialTheme.netLocker.blocked, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Block", color = MaterialTheme.netLocker.blocked, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                }
                             }
                         }
                     }

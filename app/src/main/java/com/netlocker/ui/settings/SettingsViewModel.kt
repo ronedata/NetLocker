@@ -13,6 +13,7 @@ import com.netlocker.update.DownloadOutcome
 import com.netlocker.util.AppTheme
 import com.netlocker.util.PreferencesManager
 import com.netlocker.util.ServiceLocator
+import com.netlocker.util.TextSize
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -28,6 +29,7 @@ data class SettingsUiState(
     val showSystemApps: Boolean = false,
     val autoRefresh: Boolean = true,
     val minimalNotification: Boolean = false,
+    val textSize: TextSize = TextSize.DEFAULT,
 )
 
 /** Never assumes success — mirrors exactly what the GitHub check / download actually
@@ -53,14 +55,16 @@ class SettingsViewModel(
         preferencesManager.showSystemApps,
         preferencesManager.autoRefresh,
         preferencesManager.minimalNotification,
-    ) { theme, showSystemApps, autoRefresh, minimalNotification ->
-        SettingsUiState(theme, showSystemApps, autoRefresh, minimalNotification)
+        preferencesManager.textSize,
+    ) { theme, showSystemApps, autoRefresh, minimalNotification, textSize ->
+        SettingsUiState(theme, showSystemApps, autoRefresh, minimalNotification, textSize)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
     fun setTheme(theme: AppTheme) = viewModelScope.launch { preferencesManager.setTheme(theme) }
     fun setShowSystemApps(show: Boolean) = viewModelScope.launch { preferencesManager.setShowSystemApps(show) }
     fun setAutoRefresh(enabled: Boolean) = viewModelScope.launch { preferencesManager.setAutoRefresh(enabled) }
 
+    fun setTextSize(size: TextSize) = viewModelScope.launch { preferencesManager.setTextSize(size) }
     fun setMinimalNotification(enabled: Boolean) = viewModelScope.launch { preferencesManager.setMinimalNotification(enabled) }
 
     private val _updateState =MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)

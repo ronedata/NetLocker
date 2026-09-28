@@ -27,7 +27,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Error
@@ -42,6 +44,7 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -70,6 +73,7 @@ import com.netlocker.ui.components.CircleIconButton
 import com.netlocker.ui.components.NetLockerCard
 import com.netlocker.ui.theme.netLocker
 import com.netlocker.util.AppTheme
+import com.netlocker.util.TextSize
 
 @Composable
 fun SettingsScreen(
@@ -129,6 +133,26 @@ fun SettingsScreen(
             }
         }
 
+        // Text size
+        SettingsCard(icon = Icons.Filled.TextFields, title = "Text size", subtitle = "Make NetLocker's text smaller or larger") {
+            Column(modifier = Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextSize.entries.forEach { size ->
+                    val (label, description) = when (size) {
+                        TextSize.SMALL -> "Small" to "Compact text"
+                        TextSize.DEFAULT -> "Default" to "Recommended"
+                        TextSize.LARGE -> "Large" to "Bigger text"
+                        TextSize.SYSTEM -> "Follow system" to "Use the phone's font size setting"
+                    }
+                    ChoiceOption(
+                        label = label,
+                        description = description,
+                        selected = uiState.textSize == size,
+                        onSelect = { viewModel.setTextSize(size) },
+                    )
+                }
+            }
+        }
+
         SwitchCard(
             icon = Icons.Filled.Apps,
             title = "Show system apps",
@@ -181,13 +205,16 @@ fun SettingsScreen(
         SettingsCard(icon = Icons.Filled.Info, title = "About NetLocker", subtitle = "App information and updates") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 InfoRow(icon = Icons.Filled.Lock, title = "Version", value = BuildConfig.VERSION_NAME)
-                ClickRow(
-                    icon = Icons.Filled.Update,
-                    title = "Check for updates",
-                    subtitle = "NetLocker isn't on Play Store — updates are checked against GitHub Releases",
-                    enabled = updateState !is UpdateUiState.Checking && updateState !is UpdateUiState.Downloading,
+                Button(
                     onClick = viewModel::checkForUpdate,
-                )
+                    enabled = updateState !is UpdateUiState.Checking && updateState !is UpdateUiState.Downloading,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Icon(Icons.Filled.Update, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Check for updates", fontWeight = FontWeight.SemiBold)
+                }
                 UpdateStatus(
                     state = updateState,
                     onUpdate = viewModel::startUpdate,
@@ -287,6 +314,28 @@ private fun ThemeOption(theme: AppTheme, selected: Boolean, onSelect: () -> Unit
 }
 
 @Composable
+private fun ChoiceOption(label: String, description: String, selected: Boolean, onSelect: () -> Unit) {
+    val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.netLocker.cardBorder
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent)
+            .border(1.dp, border, RoundedCornerShape(14.dp))
+            .selectable(selected = selected, onClick = onSelect, role = Role.RadioButton)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(label, fontWeight = FontWeight.SemiBold)
+            Text(description, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
 private fun InfoRow(icon: ImageVector, title: String, value: String) {
     Row(
         modifier = Modifier
@@ -346,9 +395,13 @@ private fun UpdateStatus(
 ) {
     when (state) {
         UpdateUiState.Idle -> Unit
-        UpdateUiState.Checking -> StatusLine(busy = true, text = "Checking GitHub for a newer release…")
+        UpdateUiState.Checking -> StatusLine(busy = true, text = "Checking for updates…")
         UpdateUiState.Downloading -> StatusLine(busy = true, text = "Downloading update…")
-        UpdateUiState.UpToDate -> StatusLine(text = "You're on the latest version.", color = MaterialTheme.netLocker.allowed)
+        UpdateUiState.UpToDate -> StatusLine(
+            icon = Icons.Filled.CheckCircle,
+            text = "No update available — you're on the latest version.",
+            color = MaterialTheme.netLocker.allowed,
+        )
         is UpdateUiState.Error -> StatusLine(icon = Icons.Filled.Error, text = state.message, color = MaterialTheme.colorScheme.error)
         is UpdateUiState.Available -> ClickRow(
             icon = Icons.Filled.Download,

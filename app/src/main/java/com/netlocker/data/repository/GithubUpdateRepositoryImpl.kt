@@ -40,13 +40,12 @@ class GithubUpdateRepositoryImpl(
 
             val responseCode = connection.responseCode
             if (responseCode != HttpURLConnection.HTTP_OK) {
-                val reason = when (responseCode) {
-                    HttpURLConnection.HTTP_NOT_FOUND -> "No releases have been published yet."
-                    403 -> "GitHub API rate limit reached — try again later."
-                    else -> "GitHub returned HTTP $responseCode."
-                }
                 connection.disconnect()
-                return@withContext UpdateCheckResult.Error(reason)
+                // 404 = nothing has been published, i.e. nothing newer than what's installed.
+                if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) return@withContext UpdateCheckResult.UpToDate
+                return@withContext UpdateCheckResult.Error(
+                    if (responseCode == 403) MESSAGE_TRY_LATER else MESSAGE_GENERIC_FAILURE,
+                )
             }
 
             val body = connection.inputStream.bufferedReader().readText()
@@ -54,7 +53,7 @@ class GithubUpdateRepositoryImpl(
             val json = JSONObject(body)
 
             val tagName = json.optString("tag_name").ifBlank {
-                return@withContext UpdateCheckResult.Error("Release had no version tag.")
+                return@withContext UpdateCheckResult.Error(MESSAGE_GENERIC_FAILURE)
             }
             val latestVersion = tagName.removePrefix("v")
 
@@ -66,7 +65,9 @@ class GithubUpdateRepositoryImpl(
             val apkAsset = (0 until (assets?.length() ?: 0))
                 .map { assets!!.getJSONObject(it) }
                 .firstOrNull { it.optString("name").endsWith(".apk") }
-                ?: return@withContext UpdateCheckResult.Error("Newer version $latestVersion found, but it has no APK attached.")
+                ?: return@withContext UpdateCheckResult.Error(
+                    "Version $latestVersion is available but can't be downloaded yet. Please try again later.",
+                )
 
             UpdateCheckResult.UpdateAvailable(
                 AppUpdate(
@@ -78,12 +79,27 @@ class GithubUpdateRepositoryImpl(
             )
         } catch (e: Exception) {
             Logger.w(TAG, "update check failed", e)
-            UpdateCheckResult.Error(e.message ?: "Could not reach GitHub.")
+            UpdateCheckResult.Error(friendlyUpdateError(e))
         }
     }
 
     companion object {
         private const val TAG = "GithubUpdateRepository"
+        const val MESSAGE_NO_CONNECTION = "Couldn't check for updates. Please check your internet connection and try again."
+        const val MESSAGE_TRY_LATER = "Couldn't check for updates right now. Please try again in a little while."
+        const val MESSAGE_GENERIC_FAILURE = "Couldn't check for updates. Please try again later."
+
+        /** Plain-language reason for a failed check — never a raw exception message
+         *  ("Unable to resolve host …") and never a mention of where updates come from. */
+        fun friendlyUpdateError(e: Exception): String = when (e) {
+            is java.net.UnknownHostException,
+            is java.net.ConnectException,
+            is java.net.SocketTimeoutException,
+            is java.net.NoRouteToHostException,
+            is javax.net.ssl.SSLException,
+            -> MESSAGE_NO_CONNECTION
+            else -> MESSAGE_GENERIC_FAILURE
+        }
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val READ_TIMEOUT_MS = 10_000
     }

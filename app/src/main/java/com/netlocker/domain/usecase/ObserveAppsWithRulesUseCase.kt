@@ -22,7 +22,9 @@ class ObserveAppsWithRulesUseCase(
             networkRuleRepository.observeRules(),
         ) { apps, rules ->
             apps
-                .map { app -> AppWithRule(app, rules[app.packageName] ?: NetworkRule.default(app.packageName)) }
+                .map { app ->
+                    AppWithRule(app, rules[app.packageName] ?: NetworkRule.default(app.packageName), hasRule = app.packageName in rules)
+                }
                 .sortedWith(compareBy({ it.app.isSystemApp }, { it.app.label.lowercase() }))
         }
 }
