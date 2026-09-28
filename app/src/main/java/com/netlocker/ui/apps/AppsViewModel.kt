@@ -66,7 +66,9 @@ class AppsViewModel(
         )
 
         val inCategory = when (ctl.category) {
-            AppCategoryFilter.ALL -> if (showSystemApps) allApps else userApps
+            // Searching looks through system apps too, even when they're hidden from the plain
+            // list — otherwise a preinstalled app like Chrome can't be found by name.
+            AppCategoryFilter.ALL -> if (showSystemApps || ctl.query.isNotBlank()) allApps else userApps
             AppCategoryFilter.GAMES -> userApps.filter { it.app.category == AppCategory.GAME }
             AppCategoryFilter.SOCIAL -> userApps.filter { it.app.category == AppCategory.SOCIAL }
             AppCategoryFilter.SYSTEM -> systemApps
