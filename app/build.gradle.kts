@@ -39,8 +39,8 @@ android {
         // per-app packet attribution cannot be done without root (see README).
         minSdk = 29
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.5.1"
+        versionCode = 10
+        versionName = "1.5.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

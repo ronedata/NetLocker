@@ -75,6 +75,15 @@ shows the real system dialog, and confirms exempt via `dumpsys deviceidle whitel
 afterwards) and links to the phone's own Battery/Device Care settings for the
 Samsung-specific restrictions Android's own API doesn't cover.
 
+**Clear cache.** Settings has a "Clear cache" card with a "Clear app cache" button that
+deletes the contents of NetLocker's own `cacheDir` (verified on-device: writing a known-size
+file into the cache directory and clearing it reports the exact size freed, and the file is
+gone afterwards). It never touches the Room database or DataStore preferences, so rules and
+settings are unaffected — verified by clearing the cache and confirming all saved rules were
+still present afterwards. A second row opens the app's own App Info page, since Android has
+no direct deep-link into the "Storage" sub-screen where the full system-level "Clear
+data"/"Clear cache" buttons live.
+
 ## 2. Why this needs a local VPN (read this before anything else)
 
 Android sandboxes every app into its own UID. The only APIs that can change **another

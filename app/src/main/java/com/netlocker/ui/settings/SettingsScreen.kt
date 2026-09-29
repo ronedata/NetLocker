@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Download
@@ -89,6 +90,8 @@ import com.netlocker.ui.components.NetLockerCard
 import com.netlocker.ui.theme.netLocker
 import com.netlocker.util.AppTheme
 import com.netlocker.util.TextSize
+import java.io.File
+import java.util.Locale
 
 @Composable
 fun SettingsScreen(
@@ -147,7 +150,7 @@ fun SettingsScreen(
 
         // Theme
         SettingsCard(icon = Icons.Filled.Palette, title = "Theme", subtitle = "Choose your preferred appearance") {
-            Column(modifier = Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 AppTheme.entries.forEach { theme ->
                     ThemeOption(
                         theme = theme,
@@ -160,17 +163,16 @@ fun SettingsScreen(
 
         // Text size
         SettingsCard(icon = Icons.Filled.TextFields, title = "Text size", subtitle = "Make NetLocker's text smaller or larger") {
-            Column(modifier = Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextSize.entries.forEach { size ->
-                    val (label, description) = when (size) {
-                        TextSize.SMALL -> "Small" to "Compact text"
-                        TextSize.DEFAULT -> "Default" to "Recommended"
-                        TextSize.LARGE -> "Large" to "Bigger text"
-                        TextSize.SYSTEM -> "Follow system" to "Use the phone's font size setting"
+                    val label = when (size) {
+                        TextSize.SMALL -> "Small"
+                        TextSize.DEFAULT -> "Default"
+                        TextSize.LARGE -> "Large"
+                        TextSize.SYSTEM -> "Follow system"
                     }
                     ChoiceOption(
                         label = label,
-                        description = description,
                         selected = uiState.textSize == size,
                         onSelect = { viewModel.setTextSize(size) },
                     )
@@ -340,6 +342,44 @@ fun SettingsScreen(
 
         SettingsCard(icon = Icons.Filled.VerifiedUser, title = "Network method", subtitle = "Detected automatically — VPN-based local firewall (no root required)")
 
+        // Clear cache
+        var cacheClearedLabel by remember { mutableStateOf<String?>(null) }
+        SettingsCard(
+            icon = Icons.Filled.Delete,
+            title = "Clear cache",
+            subtitle = "Frees up space used by NetLocker's temporary files. This never touches your saved rules or settings.",
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { cacheClearedLabel = "Cleared ${formatBytes(clearCacheDir(context.cacheDir))}" },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Clear app cache", fontWeight = FontWeight.SemiBold)
+                }
+                cacheClearedLabel?.let { label ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.netLocker.allowed, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(label, color = MaterialTheme.netLocker.allowed, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                }
+                ClickRow(
+                    icon = Icons.Filled.Settings,
+                    title = "Open App Info → Storage",
+                    subtitle = "For a full system-level cache/data clear, open Storage from there",
+                    enabled = true,
+                    onClick = {
+                        context.startActivity(
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+                        )
+                    },
+                )
+            }
+        }
+
         // About + updates
         SettingsCard(icon = Icons.Filled.Info, title = "About NetLocker", subtitle = "App information and updates") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -425,52 +465,46 @@ private fun IconBadge(icon: ImageVector, tint: Color = MaterialTheme.colorScheme
 
 @Composable
 private fun ThemeOption(theme: AppTheme, selected: Boolean, onSelect: () -> Unit) {
-    val (icon, label, description) = when (theme) {
-        AppTheme.SYSTEM -> Triple(Icons.Filled.PhoneAndroid, "System", "Use system default theme")
-        AppTheme.LIGHT -> Triple(Icons.Filled.LightMode, "Light", "Use light theme")
-        AppTheme.DARK -> Triple(Icons.Filled.DarkMode, "Dark", "Use dark theme")
+    val (icon, label) = when (theme) {
+        AppTheme.SYSTEM -> Icons.Filled.PhoneAndroid to "System"
+        AppTheme.LIGHT -> Icons.Filled.LightMode to "Light"
+        AppTheme.DARK -> Icons.Filled.DarkMode to "Dark"
     }
-    val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.netLocker.cardBorder
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent)
-            .border(1.dp, border, RoundedCornerShape(14.dp))
-            .selectable(selected = selected, onClick = onSelect, role = Role.RadioButton)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = null)
-        Spacer(Modifier.width(8.dp))
-        Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(10.dp))
-        Column {
-            Text(label, fontWeight = FontWeight.SemiBold)
-            Text(description, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
+    CompactChoiceRow(icon = icon, label = label, selected = selected, onSelect = onSelect)
 }
 
 @Composable
-private fun ChoiceOption(label: String, description: String, selected: Boolean, onSelect: () -> Unit) {
+private fun ChoiceOption(label: String, selected: Boolean, onSelect: () -> Unit) {
+    CompactChoiceRow(icon = null, label = label, selected = selected, onSelect = onSelect)
+}
+
+/** One option, one line: a radio button, an optional small icon, and just the label — no
+ *  second description line, so a whole row of options (Theme, Text size) fits in far less
+ *  vertical space. */
+@Composable
+private fun CompactChoiceRow(icon: ImageVector?, label: String, selected: Boolean, onSelect: () -> Unit) {
     val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.netLocker.cardBorder
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent)
-            .border(1.dp, border, RoundedCornerShape(14.dp))
+            .border(1.dp, border, RoundedCornerShape(12.dp))
             .selectable(selected = selected, onClick = onSelect, role = Role.RadioButton)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RadioButton(selected = selected, onClick = null)
-        Spacer(Modifier.width(8.dp))
-        Column {
-            Text(label, fontWeight = FontWeight.SemiBold)
-            Text(description, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        RadioButton(
+            selected = selected,
+            onClick = null,
+            modifier = Modifier.size(28.dp),
+        )
+        if (icon != null) {
+            Spacer(Modifier.width(4.dp))
+            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
         }
+        Spacer(Modifier.width(6.dp))
+        Text(label, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1)
     }
 }
 
@@ -591,6 +625,20 @@ private fun StatusLine(
         }
         Text(text, color = color, fontSize = 14.sp)
     }
+}
+
+/** Deletes everything under NetLocker's own cache directory (never the Room database or
+ *  DataStore preferences, which live elsewhere) and returns the bytes freed. */
+private fun clearCacheDir(dir: File): Long {
+    val freed = dir.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
+    dir.listFiles()?.forEach { it.deleteRecursively() }
+    return freed
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
+    bytes >= 1024 -> String.format(Locale.getDefault(), "%.0f KB", bytes / 1024.0)
+    else -> "$bytes B"
 }
 
 /** Asks Android to add the Firewall tile to Quick Settings (Android 13+). The system shows
