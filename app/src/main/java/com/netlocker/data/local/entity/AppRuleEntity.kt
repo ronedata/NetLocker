@@ -3,6 +3,7 @@ package com.netlocker.data.local.entity
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.netlocker.domain.model.ALL_DAYS_MASK
 
 /**
  * Persisted per-app network rule. [packageName] is the primary key — one rule per app;
@@ -20,4 +21,8 @@ data class AppRuleEntity(
     val updatedAt: Long,
     @ColumnInfo(defaultValue = "1") val isEnabled: Boolean = true,
     @ColumnInfo(defaultValue = "0") val createdAt: Long = 0L,
+    @ColumnInfo(defaultValue = "0") val scheduleEnabled: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val scheduleStartMinute: Int = 0,
+    @ColumnInfo(defaultValue = "0") val scheduleEndMinute: Int = 0,
+    @ColumnInfo(defaultValue = "127") val scheduleDays: Int = ALL_DAYS_MASK,
 )

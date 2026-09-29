@@ -9,11 +9,13 @@ import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.os.Process
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.netlocker.MainActivity
 import com.netlocker.R
 import com.netlocker.domain.model.FirewallStatus
+import com.netlocker.domain.model.NetworkRule
 import com.netlocker.domain.repository.InstalledAppRepository
 import com.netlocker.domain.repository.NetworkRuleRepository
 import com.netlocker.util.Logger
@@ -26,6 +28,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -50,6 +53,7 @@ class NetLockerVpnService : VpnService() {
     private lateinit var transportMonitor: TransportMonitor
     private lateinit var connectionOwnerResolver: ConnectionOwnerResolver
     private lateinit var blockedTracker: BlockedAttemptTracker
+    private lateinit var scheduleEvaluator: ScheduleEvaluator
 
     /** Package names currently excluded from the tunnel (i.e. fully-allowed at the
      *  time the tunnel was last (re)established) — see [reconfigureAndEstablish]. */
@@ -59,6 +63,7 @@ class NetLockerVpnService : VpnService() {
     /** Which notification style is currently posted (see [FirewallNotificationSpec]). */
     @Volatile private var minimalNotification = false
     private var notificationPrefJob: Job? = null
+    private var scheduleMasterPrefJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -68,6 +73,11 @@ class NetLockerVpnService : VpnService() {
         transportMonitor = ServiceLocator.transportMonitor
         connectionOwnerResolver = ConnectionOwnerResolver(this)
         blockedTracker = BlockedAttemptTracker(ServiceLocator.blockedStatsRepository)
+        scheduleEvaluator = ScheduleEvaluator(
+            ServiceLocator.preferencesManager.scheduleMasterEnabled,
+            networkRuleRepository,
+            ::onScheduleWindowEntered,
+        )
         instance = this
     }
 
@@ -103,7 +113,9 @@ class NetLockerVpnService : VpnService() {
         ruleIndex.start(serviceScope)
         transportMonitor.start()
         blockedTracker.start(serviceScope)
+        scheduleEvaluator.start(serviceScope)
         watchNotificationPreference()
+        watchScheduleMasterPreference()
 
         serviceScope.launch {
             reconfigureAndEstablish()
@@ -117,13 +129,11 @@ class NetLockerVpnService : VpnService() {
     private suspend fun reconfigureAndEstablish() {
         val rules = networkRuleRepository.observeRules().first()
         val allApps = installedAppRepository.observeInstalledApps(includeSystemApps = true).first()
+        val scheduleMasterEnabled = ServiceLocator.preferencesManager.scheduleMasterEnabled.first()
 
         val fullyOpenPackages = allApps
             .map { it.packageName }
-            .filter { pkg ->
-                val rule = rules[pkg]
-                rule == null || rule.isEffectivelyOpen
-            }
+            .filter { pkg -> isFullyOpen(rules[pkg], scheduleMasterEnabled) }
             .toSet() +
             // NetLocker never appears in its own app list (so it can't firewall itself), which
             // also means it isn't in `allApps` — without this its own traffic (e.g. the update
@@ -174,6 +184,7 @@ class NetLockerVpnService : VpnService() {
             protectSocket = ::protect,
             protectDatagramSocket = ::protect,
             onBlocked = blockedTracker::onBlocked,
+            scheduleMasterEnabled = scheduleMasterEnabled,
         ).also { it.start(serviceScope) }
 
         _status.value = FirewallStatus.Active
@@ -188,11 +199,41 @@ class NetLockerVpnService : VpnService() {
         // list Builder was configured with is now stale and the tunnel must be rebuilt.
         serviceScope.launch {
             val rule = networkRuleRepository.getRuleOnce(packageName)
-            val shouldBeExcluded = rule.isEffectivelyOpen
+            val scheduleMasterEnabled = ServiceLocator.preferencesManager.scheduleMasterEnabled.first()
+            val shouldBeExcluded = isFullyOpen(rule, scheduleMasterEnabled)
             val wasExcluded = packageName in excludedPackages
             if (shouldBeExcluded != wasExcluded) {
                 restartJob?.cancel()
                 restartJob = launch { reconfigureAndEstablish() }
+            }
+        }
+    }
+
+    /** Whether an app can be excluded from the tunnel entirely (spec: the zero-overhead
+     *  path). An app with a live schedule must always stay inside the tunnel — even
+     *  outside its block window — because there is no other hook to start enforcing the
+     *  moment that window opens; see [ScheduleEvaluator]. */
+    private fun isFullyOpen(rule: NetworkRule?, scheduleMasterEnabled: Boolean): Boolean {
+        val hasLiveSchedule = scheduleMasterEnabled && rule?.scheduleEnabled == true
+        return (rule == null || rule.isEffectivelyOpen) && !hasLiveSchedule
+    }
+
+    /** [ScheduleEvaluator] callback: an app's scheduled block window just started, so any
+     *  connection it already has open must be cut immediately rather than left running
+     *  until it happens to close on its own — the same immediacy a normal rule edit gets. */
+    private fun onScheduleWindowEntered(packageName: String) {
+        val uid = runCatching { packageManager.getApplicationInfo(packageName, 0).uid }
+            .getOrDefault(Process.INVALID_UID)
+        if (uid != Process.INVALID_UID) engine?.invalidateSessionsForUid(uid)
+    }
+
+    /** Rebuilds the tunnel's exclusion list when the Schedule master switch itself flips —
+     *  that can move several apps in/out of the tunnel at once, unlike a single rule edit. */
+    private fun watchScheduleMasterPreference() {
+        scheduleMasterPrefJob?.cancel()
+        scheduleMasterPrefJob = serviceScope.launch {
+            ServiceLocator.preferencesManager.scheduleMasterEnabled.drop(1).collect {
+                reconfigureAndEstablish()
             }
         }
     }
@@ -203,6 +244,7 @@ class NetLockerVpnService : VpnService() {
         tunFd?.close()
         tunFd = null
         transportMonitor.stop()
+        scheduleEvaluator.stop()
         saveBlockedCounts()
         excludedPackages = emptySet()
         _status.value = FirewallStatus.Stopped
@@ -227,6 +269,7 @@ class NetLockerVpnService : VpnService() {
         engine?.stop()
         tunFd?.close()
         transportMonitor.stop()
+        scheduleEvaluator.stop()
         saveBlockedCounts()
         if (instance === this) instance = null
         serviceScope.cancel()

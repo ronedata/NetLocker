@@ -33,10 +33,20 @@ but stops enforcing it — the app behaves exactly as if it had no rule (verifie
 device: a disabled "Blocked" rule produced zero firewall decisions and the app went
 online; re-enabling it resumed dropping its traffic).
 
-The database is at **schema v3** (v2 added `isEnabled` and `createdAt`; v3 adds the
-`blocked_stats` table). Upgrading keeps every saved rule via explicit migrations — there
-is deliberately no destructive fallback, since silently wiping a firewall's rules would be
-a security regression.
+The database is at **schema v5** (v2 added `isEnabled` and `createdAt`; v3 adds the
+`blocked_stats` table; v4 adds the per-rule schedule window; v5 adds which days of the
+week it applies to). Upgrading keeps every saved rule via explicit migrations — there is
+deliberately no destructive fallback, since silently wiping a firewall's rules would be a
+security regression.
+
+**Schedule.** Settings has an off-by-default "Schedule" master switch; only while it's on
+does each rule show a "Schedule" section (Edit Rule, Add Rule, App Details) to block that
+app during a time window, optionally repeating only on chosen days (default: every day).
+Turning the master off again doesn't delete any app's schedule, it just stops enforcing it
+— the same "paused, not lost" pattern as a disabled rule. An app with a live schedule stays
+inside the VPN tunnel even outside its block window (it can't use the zero-overhead
+excluded-app path), so the small relay cost is paid only by apps a user opts into
+scheduling.
 
 **Blocked attempts.** While the firewall runs, each connection a rule blocks is counted per
 app per day and shown on the Rules cards and App Details ("N blocked attempts today"). A

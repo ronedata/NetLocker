@@ -31,6 +31,7 @@ data class SettingsUiState(
     val minimalNotification: Boolean = false,
     val textSize: TextSize = TextSize.DEFAULT,
     val autoStartOnBoot: Boolean = false,
+    val scheduleMasterEnabled: Boolean = false,
 )
 
 /** Never assumes success — mirrors exactly what the GitHub check / download actually
@@ -65,8 +66,13 @@ class SettingsViewModel(
         displayPrefs,
         preferencesManager.minimalNotification,
         preferencesManager.autoStartOnBoot,
-    ) { display, minimalNotification, autoStartOnBoot ->
-        display.copy(minimalNotification = minimalNotification, autoStartOnBoot = autoStartOnBoot)
+        preferencesManager.scheduleMasterEnabled,
+    ) { display, minimalNotification, autoStartOnBoot, scheduleMasterEnabled ->
+        display.copy(
+            minimalNotification = minimalNotification,
+            autoStartOnBoot = autoStartOnBoot,
+            scheduleMasterEnabled = scheduleMasterEnabled,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
     fun setTheme(theme: AppTheme) = viewModelScope.launch { preferencesManager.setTheme(theme) }
@@ -77,6 +83,8 @@ class SettingsViewModel(
     fun setMinimalNotification(enabled: Boolean) = viewModelScope.launch { preferencesManager.setMinimalNotification(enabled) }
 
     fun setAutoStartOnBoot(enabled: Boolean) = viewModelScope.launch { preferencesManager.setAutoStartOnBoot(enabled) }
+
+    fun setScheduleMasterEnabled(enabled: Boolean) = viewModelScope.launch { preferencesManager.setScheduleMasterEnabled(enabled) }
 
     private val _updateState = MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
     val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()

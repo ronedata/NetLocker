@@ -33,6 +33,16 @@ class PreferencesManager(private val context: Context) {
         val MINIMAL_NOTIFICATION = booleanPreferencesKey("minimal_notification")
         val TEXT_SIZE = stringPreferencesKey("text_size")
         val AUTO_START_ON_BOOT = booleanPreferencesKey("auto_start_on_boot")
+        val SCHEDULE_MASTER_ENABLED = booleanPreferencesKey("schedule_master_enabled")
+    }
+
+    /** Off by default: the master switch for the whole "block on a schedule" feature.
+     *  While off, no per-app schedule (however set) is enforced, and no per-app schedule
+     *  UI is shown — see network/ScheduleEvaluator. */
+    val scheduleMasterEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.SCHEDULE_MASTER_ENABLED] ?: false }
+
+    suspend fun setScheduleMasterEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SCHEDULE_MASTER_ENABLED] = enabled }
     }
 
     /** Off by default: the firewall only restarts by itself after a reboot/update if the

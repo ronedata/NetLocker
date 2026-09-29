@@ -78,6 +78,7 @@ import com.netlocker.ui.components.StatusPill
 import com.netlocker.ui.components.allowedStyle
 import com.netlocker.ui.components.rememberFirewallActions
 import com.netlocker.ui.components.style
+import com.netlocker.ui.rules.ScheduleForm
 import com.netlocker.ui.theme.netLocker
 import com.netlocker.util.formatBytes
 
@@ -224,6 +225,40 @@ fun AppDetailsScreen(
                     title = "Mobile Data",
                     checked = mobile,
                     onCheckedChange = { viewModel.setMobileDataAllowed(wifi, it) },
+                )
+            }
+        }
+
+        // Schedule — only shown once the user has turned it on in Settings.
+        val scheduleMasterEnabled by viewModel.scheduleMasterEnabled.collectAsState()
+        if (scheduleMasterEnabled) {
+            var scheduleEnabled by remember(rule.packageName) { mutableStateOf(rule.scheduleEnabled) }
+            var scheduleStart by remember(rule.packageName) { mutableStateOf(rule.scheduleStartMinute) }
+            var scheduleEnd by remember(rule.packageName) { mutableStateOf(rule.scheduleEndMinute) }
+            var scheduleDays by remember(rule.packageName) { mutableStateOf(rule.scheduleDays) }
+            NetLockerCard(modifier = Modifier.fillMaxWidth()) {
+                ScheduleForm(
+                    enabled = scheduleEnabled,
+                    startMinute = scheduleStart,
+                    endMinute = scheduleEnd,
+                    days = scheduleDays,
+                    onEnabledChange = {
+                        scheduleEnabled = it
+                        viewModel.setSchedule(it, scheduleStart, scheduleEnd, scheduleDays)
+                    },
+                    onStartChange = {
+                        scheduleStart = it
+                        viewModel.setSchedule(scheduleEnabled, it, scheduleEnd, scheduleDays)
+                    },
+                    onEndChange = {
+                        scheduleEnd = it
+                        viewModel.setSchedule(scheduleEnabled, scheduleStart, it, scheduleDays)
+                    },
+                    onDaysChange = {
+                        scheduleDays = it
+                        viewModel.setSchedule(scheduleEnabled, scheduleStart, scheduleEnd, it)
+                    },
+                    modifier = Modifier.padding(12.dp),
                 )
             }
         }

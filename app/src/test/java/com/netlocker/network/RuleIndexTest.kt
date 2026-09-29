@@ -30,6 +30,12 @@ private class FakeNetworkRuleRepository(initial: Map<String, NetworkRule>) : Net
     override suspend fun setEnabled(packageName: String, enabled: Boolean) {
         rules.value[packageName]?.let { rules.value = rules.value + (packageName to it.copy(isEnabled = enabled)) }
     }
+    override suspend fun setSchedule(packageName: String, enabled: Boolean, startMinute: Int, endMinute: Int, days: Int) {
+        val current = rules.value[packageName] ?: NetworkRule.default(packageName)
+        rules.value = rules.value + (packageName to current.copy(scheduleEnabled = enabled, scheduleStartMinute = startMinute, scheduleEndMinute = endMinute, scheduleDays = days))
+    }
+    override fun observeScheduledRules(): Flow<List<NetworkRule>> =
+        rules.map { it.values.filter { rule -> rule.isEnabled && rule.scheduleEnabled } }
     override suspend fun deleteRule(packageName: String) {
         rules.value = rules.value - packageName
     }

@@ -11,7 +11,9 @@ import com.netlocker.domain.model.BlockedStat
 import com.netlocker.domain.repository.BlockedStatsRepository
 import com.netlocker.domain.usecase.DeleteRuleUseCase
 import com.netlocker.domain.usecase.ObserveAppWithRuleUseCase
+import com.netlocker.domain.usecase.SetScheduleUseCase
 import com.netlocker.domain.usecase.UpdateNetworkRuleUseCase
+import com.netlocker.util.PreferencesManager
 import com.netlocker.util.ServiceLocator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,8 +37,18 @@ class AppDetailsViewModel(
     private val updateNetworkRuleUseCase: UpdateNetworkRuleUseCase,
     private val deleteRuleUseCase: DeleteRuleUseCase,
     private val usageReader: AppDataUsageReader,
+    private val setScheduleUseCase: SetScheduleUseCase,
     blockedStatsRepository: BlockedStatsRepository,
+    preferencesManager: PreferencesManager,
 ) : ViewModel() {
+
+    /** Settings' Schedule master switch — while off, App Details hides the Schedule section. */
+    val scheduleMasterEnabled: StateFlow<Boolean> = preferencesManager.scheduleMasterEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setSchedule(enabled: Boolean, startMinute: Int, endMinute: Int, days: Int) {
+        viewModelScope.launch { setScheduleUseCase(packageName, enabled, startMinute, endMinute, days) }
+    }
 
     /** Today's blocked-connection tally for this app (null until something was blocked). */
     val blockedToday: StateFlow<BlockedStat?> = blockedStatsRepository.observeToday()
@@ -92,7 +104,9 @@ class AppDetailsViewModel(
                     ServiceLocator.updateNetworkRuleUseCase,
                     ServiceLocator.deleteRuleUseCase,
                     ServiceLocator.appDataUsageReader,
+                    ServiceLocator.setScheduleUseCase,
                     ServiceLocator.blockedStatsRepository,
+                    ServiceLocator.preferencesManager,
                 )
             }
         }

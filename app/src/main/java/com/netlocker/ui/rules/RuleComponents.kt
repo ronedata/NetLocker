@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
@@ -48,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,12 +60,15 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.netlocker.domain.model.ALL_DAYS_MASK
 import com.netlocker.domain.model.InstalledApp
 import com.netlocker.domain.model.NetworkRule
 import com.netlocker.domain.model.RuleStatus
@@ -89,6 +94,7 @@ fun RuleCard(
     item: RuleWithApp,
     firewallActive: Boolean,
     blockedToday: Int,
+    scheduleMasterEnabled: Boolean,
     onEdit: () -> Unit,
     onToggleEnabled: () -> Unit,
     onDelete: () -> Unit,
@@ -140,6 +146,21 @@ fun RuleCard(
                 ) {
                     TransportPill("Wi-Fi", Icons.Filled.Wifi, rule.wifiAllowed, disabled)
                     TransportPill("Mobile Data", Icons.Filled.SignalCellularAlt, rule.mobileDataAllowed, disabled)
+                }
+                if (scheduleMasterEnabled && rule.scheduleEnabled) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Schedule, contentDescription = null, tint = colors.wifi, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(4.dp))
+                        val days = formatScheduleDays(rule.scheduleDays)
+                        Text(
+                            "${formatMinuteOfDay(rule.scheduleStartMinute)} – ${formatMinuteOfDay(rule.scheduleEndMinute)}" +
+                                if (rule.scheduleDays == ALL_DAYS_MASK) "" else " · $days",
+                            fontSize = 12.sp,
+                            color = colors.wifi,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
                 }
                 if (blockedToday > 0) {
                     Spacer(Modifier.height(4.dp))
@@ -290,24 +311,67 @@ private fun FormSwitchRow(
 @Composable
 fun EditRuleDialog(
     item: RuleWithApp,
+    scheduleMasterEnabled: Boolean,
     onDismiss: () -> Unit,
-    onSave: (wifiAllowed: Boolean, mobileDataAllowed: Boolean) -> Unit,
+    onSave: (
+        wifiAllowed: Boolean,
+        mobileDataAllowed: Boolean,
+        scheduleEnabled: Boolean,
+        scheduleStartMinute: Int,
+        scheduleEndMinute: Int,
+        scheduleDays: Int,
+    ) -> Unit,
 ) {
     var wifi by remember(item.rule.packageName) { mutableStateOf(item.rule.wifiAllowed) }
     var mobile by remember(item.rule.packageName) { mutableStateOf(item.rule.mobileDataAllowed) }
+    // Preserved even while the Schedule section is hidden (master off) — editing Wi-Fi/
+    // Mobile here must never silently wipe a schedule set earlier while master was on.
+    var scheduleEnabled by remember(item.rule.packageName) { mutableStateOf(item.rule.scheduleEnabled) }
+    var scheduleStart by remember(item.rule.packageName) { mutableStateOf(item.rule.scheduleStartMinute) }
+    var scheduleEnd by remember(item.rule.packageName) { mutableStateOf(item.rule.scheduleEndMinute) }
+    var scheduleDays by remember(item.rule.packageName) { mutableStateOf(item.rule.scheduleDays) }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.netLocker.card,
-        title = { Text("Edit Rule", fontWeight = FontWeight.Bold) },
+        title = { Text("Edit Rule", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                AppHeaderRow(item.app, item.displayName, item.rule.packageName)
-                RuleForm(wifi, mobile, { wifi = it }, { mobile = it })
+            // A little smaller than the app's normal text: this dialog can hold a lot
+            // (network access + the full schedule section), and shrinking it here keeps
+            // everything on screen without truncating anything, rather than growing the
+            // dialog past the screen's edge.
+            CompositionLocalProvider(LocalDensity provides shrunkDensity()) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AppHeaderRow(item.app, item.displayName, item.rule.packageName)
+                    RuleForm(wifi, mobile, { wifi = it }, { mobile = it })
+                    if (scheduleMasterEnabled) {
+                        ScheduleForm(
+                            enabled = scheduleEnabled,
+                            startMinute = scheduleStart,
+                            endMinute = scheduleEnd,
+                            days = scheduleDays,
+                            onEnabledChange = { scheduleEnabled = it },
+                            onStartChange = { scheduleStart = it },
+                            onEndChange = { scheduleEnd = it },
+                            onDaysChange = { scheduleDays = it },
+                        )
+                    }
+                }
             }
         },
-        confirmButton = { Button(onClick = { onSave(wifi, mobile) }) { Text("Save Rule") } },
+        confirmButton = {
+            Button(onClick = { onSave(wifi, mobile, scheduleEnabled, scheduleStart, scheduleEnd, scheduleDays) }) { Text("Save Rule") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/** [LocalDensity] scaled to ~87% of its current font size only — dp sizes (icons, padding)
+ *  stay exactly as designed, only text shrinks. Used to fit more content into a fixed-size
+ *  dialog without truncating or growing past the screen. */
+@Composable
+private fun shrunkDensity(): Density {
+    val current = LocalDensity.current
+    return Density(density = current.density, fontScale = current.fontScale * 0.87f)
 }
 
 @Composable
@@ -352,14 +416,27 @@ private fun AppHeaderRow(app: InstalledApp?, name: String, packageName: String) 
 @Composable
 fun AddRuleSheet(
     apps: List<InstalledApp>,
+    scheduleMasterEnabled: Boolean,
     onDismiss: () -> Unit,
-    onSave: (packageName: String, wifiAllowed: Boolean, mobileDataAllowed: Boolean) -> Unit,
+    onSave: (
+        packageName: String,
+        wifiAllowed: Boolean,
+        mobileDataAllowed: Boolean,
+        scheduleEnabled: Boolean,
+        scheduleStartMinute: Int,
+        scheduleEndMinute: Int,
+        scheduleDays: Int,
+    ) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selected by remember { mutableStateOf<InstalledApp?>(null) }
     var query by remember { mutableStateOf("") }
     var wifi by remember { mutableStateOf(true) }
     var mobile by remember { mutableStateOf(false) }
+    var scheduleEnabled by remember { mutableStateOf(false) }
+    var scheduleStart by remember { mutableStateOf(0) }
+    var scheduleEnd by remember { mutableStateOf(0) }
+    var scheduleDays by remember { mutableStateOf(ALL_DAYS_MASK) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -407,7 +484,7 @@ fun AddRuleSheet(
                                 // app. The sheet stays open (the app drops out of the list once it
                                 // has a rule) so several apps can be blocked in a row.
                                 OutlinedButton(
-                                    onClick = { onSave(candidate.packageName, false, false) },
+                                    onClick = { onSave(candidate.packageName, false, false, false, 0, 0, ALL_DAYS_MASK) },
                                     modifier = Modifier
                                         .padding(start = 8.dp)
                                         .semantics { contentDescription = "Block ${candidate.label}" },
@@ -426,9 +503,24 @@ fun AddRuleSheet(
                 Text("Create Rule", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 AppHeaderRow(app, app.label, app.packageName)
                 RuleForm(wifi, mobile, { wifi = it }, { mobile = it })
+                if (scheduleMasterEnabled) {
+                    ScheduleForm(
+                        enabled = scheduleEnabled,
+                        startMinute = scheduleStart,
+                        endMinute = scheduleEnd,
+                        days = scheduleDays,
+                        onEnabledChange = { scheduleEnabled = it },
+                        onStartChange = { scheduleStart = it },
+                        onEndChange = { scheduleEnd = it },
+                        onDaysChange = { scheduleDays = it },
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 16.dp)) {
                     OutlinedButton(onClick = { selected = null }, modifier = Modifier.weight(1f)) { Text("Back") }
-                    Button(onClick = { onSave(app.packageName, wifi, mobile); onDismiss() }, modifier = Modifier.weight(1f)) {
+                    Button(
+                        onClick = { onSave(app.packageName, wifi, mobile, scheduleEnabled, scheduleStart, scheduleEnd, scheduleDays); onDismiss() },
+                        modifier = Modifier.weight(1f),
+                    ) {
                         Text("Save Rule")
                     }
                 }

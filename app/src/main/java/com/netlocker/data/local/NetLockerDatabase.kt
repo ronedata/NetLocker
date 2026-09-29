@@ -11,7 +11,7 @@ import com.netlocker.data.local.dao.BlockedStatDao
 import com.netlocker.data.local.entity.AppRuleEntity
 import com.netlocker.data.local.entity.BlockedStatEntity
 
-@Database(entities = [AppRuleEntity::class, BlockedStatEntity::class], version = 3, exportSchema = true)
+@Database(entities = [AppRuleEntity::class, BlockedStatEntity::class], version = 5, exportSchema = true)
 abstract class NetLockerDatabase : RoomDatabase() {
     abstract fun appRuleDao(): AppRuleDao
     abstract fun blockedStatDao(): BlockedStatDao
@@ -46,6 +46,25 @@ abstract class NetLockerDatabase : RoomDatabase() {
             }
         }
 
+        /** v3 -> v4: adds the optional per-rule "block during this time window" schedule
+         *  (off for every existing row, so nothing changes for current users). */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE app_network_rules ADD COLUMN scheduleEnabled INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE app_network_rules ADD COLUMN scheduleStartMinute INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE app_network_rules ADD COLUMN scheduleEndMinute INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** v4 -> v5: adds which days of the week the schedule applies to. Existing
+         *  schedules default to every day (127 = all 7 day-bits set), i.e. exactly what
+         *  they already did before per-day selection existed — no behaviour change. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE app_network_rules ADD COLUMN scheduleDays INTEGER NOT NULL DEFAULT 127")
+            }
+        }
+
         fun getInstance(context: Context): NetLockerDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -53,7 +72,7 @@ abstract class NetLockerDatabase : RoomDatabase() {
                     NetLockerDatabase::class.java,
                     "netlocker.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { instance = it }
             }

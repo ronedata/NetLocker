@@ -25,6 +25,17 @@ interface NetworkRuleRepository {
     /** Pauses/resumes an existing rule without touching its saved Wi-Fi/Mobile values. */
     suspend fun setEnabled(packageName: String, enabled: Boolean)
 
+    /** Sets or clears this app's "block during this time window" schedule. [startMinute]/
+     *  [endMinute] are minutes since local midnight (0..1439); a window may cross
+     *  midnight (start > end). [days] is a [com.netlocker.domain.model.dayBit] bitmask —
+     *  which days of the week it applies to. Only takes effect when the Settings-level
+     *  Schedule master switch is also on. */
+    suspend fun setSchedule(packageName: String, enabled: Boolean, startMinute: Int, endMinute: Int, days: Int)
+
+    /** Every rule with an active schedule, live — what [com.netlocker.network.ScheduleEvaluator]
+     *  watches to decide whether it needs to run at all. */
+    fun observeScheduledRules(): Flow<List<NetworkRule>>
+
     /** Removes the rule entirely — the app returns to default (fully allowed). */
     suspend fun deleteRule(packageName: String)
 }

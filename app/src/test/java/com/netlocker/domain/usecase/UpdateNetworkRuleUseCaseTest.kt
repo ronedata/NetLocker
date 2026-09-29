@@ -25,6 +25,11 @@ private class RecordingNetworkRuleRepository : NetworkRuleRepository {
     override suspend fun setEnabled(packageName: String, enabled: Boolean) {
         saved[packageName]?.let { saved[packageName] = it.copy(isEnabled = enabled) }
     }
+    override suspend fun setSchedule(packageName: String, enabled: Boolean, startMinute: Int, endMinute: Int, days: Int) {
+        val current = saved[packageName] ?: NetworkRule.default(packageName)
+        saved[packageName] = current.copy(scheduleEnabled = enabled, scheduleStartMinute = startMinute, scheduleEndMinute = endMinute, scheduleDays = days)
+    }
+    override fun observeScheduledRules(): Flow<List<NetworkRule>> = throw NotImplementedError("not needed for this test")
     override suspend fun deleteRule(packageName: String) {
         saved.remove(packageName)
     }

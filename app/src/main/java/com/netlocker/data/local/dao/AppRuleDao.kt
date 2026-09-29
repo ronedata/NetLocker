@@ -24,6 +24,11 @@ interface AppRuleDao {
     @Query("UPDATE app_network_rules SET isEnabled = :enabled, updatedAt = :now WHERE packageName = :packageName")
     suspend fun setEnabled(packageName: String, enabled: Boolean, now: Long)
 
+    /** Every currently-enabled rule with an active schedule — what [network.ScheduleEvaluator]
+     *  needs to watch; a plain Flow so it only wakes up when this set actually changes. */
+    @Query("SELECT * FROM app_network_rules WHERE isEnabled = 1 AND scheduleEnabled = 1")
+    fun observeScheduled(): Flow<List<AppRuleEntity>>
+
     @Query("DELETE FROM app_network_rules WHERE packageName = :packageName")
     suspend fun delete(packageName: String)
 }

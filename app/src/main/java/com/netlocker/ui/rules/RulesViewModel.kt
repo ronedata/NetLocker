@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.netlocker.domain.model.ALL_DAYS_MASK
 import com.netlocker.domain.model.InstalledApp
 import com.netlocker.domain.model.RuleCounts
 import com.netlocker.domain.model.RuleFilter
@@ -14,7 +15,9 @@ import com.netlocker.domain.usecase.DeleteRuleUseCase
 import com.netlocker.domain.usecase.ObserveRulesWithAppsUseCase
 import com.netlocker.domain.usecase.RuleWithApp
 import com.netlocker.domain.usecase.SetRuleEnabledUseCase
+import com.netlocker.domain.usecase.SetScheduleUseCase
 import com.netlocker.domain.usecase.UpdateNetworkRuleUseCase
+import com.netlocker.util.PreferencesManager
 import com.netlocker.util.ServiceLocator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -37,6 +40,8 @@ data class RulesUiState(
     val addableApps: List<InstalledApp> = emptyList(),
     /** Connection attempts blocked today, by package name. */
     val blockedToday: Map<String, Int> = emptyMap(),
+    /** Settings' Schedule master switch — while off, no schedule UI is shown here at all. */
+    val scheduleMasterEnabled: Boolean = false,
     val isLoading: Boolean = true,
 )
 
@@ -53,12 +58,14 @@ class RulesViewModel(
     blockedStatsRepository: BlockedStatsRepository,
     private val updateNetworkRuleUseCase: UpdateNetworkRuleUseCase,
     private val setRuleEnabledUseCase: SetRuleEnabledUseCase,
+    private val setScheduleUseCase: SetScheduleUseCase,
     private val deleteRuleUseCase: DeleteRuleUseCase,
+    preferencesManager: PreferencesManager,
 ) : ViewModel() {
 
     private val controls = MutableStateFlow(Controls())
 
-    val uiState: StateFlow<RulesUiState> = combine(
+    private val baseState = combine(
         observeRulesWithApps(),
         installedAppRepository.observeInstalledApps(includeSystemApps = true),
         installedAppRepository.isLoaded,
@@ -89,15 +96,34 @@ class RulesViewModel(
             blockedToday = blocked.mapValues { it.value.count },
             isLoading = !loaded,
         )
+    }
+
+    val uiState: StateFlow<RulesUiState> = combine(
+        baseState,
+        preferencesManager.scheduleMasterEnabled,
+    ) { state, scheduleMasterEnabled ->
+        state.copy(scheduleMasterEnabled = scheduleMasterEnabled)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RulesUiState())
 
     fun onFilterSelected(filter: RuleFilter) = controls.update { it.copy(filter = filter) }
 
     fun onQueryChange(query: String) = controls.update { it.copy(query = query) }
 
-    /** Creates or edits a rule. Saving always (re)enables it — see NetworkRuleRepository.setRule. */
-    fun saveRule(packageName: String, wifiAllowed: Boolean, mobileDataAllowed: Boolean) {
-        viewModelScope.launch { updateNetworkRuleUseCase(packageName, wifiAllowed, mobileDataAllowed) }
+    /** Creates or edits a rule (and its schedule in one go). Saving always (re)enables the
+     *  rule — see NetworkRuleRepository.setRule. */
+    fun saveRule(
+        packageName: String,
+        wifiAllowed: Boolean,
+        mobileDataAllowed: Boolean,
+        scheduleEnabled: Boolean = false,
+        scheduleStartMinute: Int = 0,
+        scheduleEndMinute: Int = 0,
+        scheduleDays: Int = ALL_DAYS_MASK,
+    ) {
+        viewModelScope.launch {
+            updateNetworkRuleUseCase(packageName, wifiAllowed, mobileDataAllowed)
+            setScheduleUseCase(packageName, scheduleEnabled, scheduleStartMinute, scheduleEndMinute, scheduleDays)
+        }
     }
 
     fun setEnabled(packageName: String, enabled: Boolean) {
@@ -117,7 +143,9 @@ class RulesViewModel(
                     ServiceLocator.blockedStatsRepository,
                     ServiceLocator.updateNetworkRuleUseCase,
                     ServiceLocator.setRuleEnabledUseCase,
+                    ServiceLocator.setScheduleUseCase,
                     ServiceLocator.deleteRuleUseCase,
+                    ServiceLocator.preferencesManager,
                 )
             }
         }

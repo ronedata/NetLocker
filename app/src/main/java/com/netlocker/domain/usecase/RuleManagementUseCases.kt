@@ -51,6 +51,18 @@ class SetRuleEnabledUseCase(
     }
 }
 
+/** Sets or clears a rule's schedule, then nudges the firewall so the tunnel's exclusion
+ *  list is rebuilt immediately if needed (see NetLockerVpnService.isFullyOpen). */
+class SetScheduleUseCase(
+    private val networkRuleRepository: NetworkRuleRepository,
+    private val firewallController: FirewallController,
+) {
+    suspend operator fun invoke(packageName: String, enabled: Boolean, startMinute: Int, endMinute: Int, days: Int) {
+        networkRuleRepository.setSchedule(packageName, enabled, startMinute, endMinute, days)
+        firewallController.notifyRuleChanged(packageName)
+    }
+}
+
 /**
  * Deletes a rule — the app goes back to default (fully allowed). This only removes
  * NetLocker's own rule; it never touches the app itself.

@@ -137,6 +137,7 @@ fun RulesScreen(
                         item = item,
                         firewallActive = firewall.isActive,
                         blockedToday = state.blockedToday[item.rule.packageName] ?: 0,
+                        scheduleMasterEnabled = state.scheduleMasterEnabled,
                         onEdit = { editing = item },
                         onToggleEnabled = { viewModel.setEnabled(item.rule.packageName, !item.rule.isEnabled) },
                         onDelete = { deleting = item },
@@ -155,9 +156,10 @@ fun RulesScreen(
     editing?.let { item ->
         EditRuleDialog(
             item = item,
+            scheduleMasterEnabled = state.scheduleMasterEnabled,
             onDismiss = { editing = null },
-            onSave = { wifi, mobile ->
-                viewModel.saveRule(item.rule.packageName, wifi, mobile)
+            onSave = { wifi, mobile, scheduleEnabled, scheduleStart, scheduleEnd, scheduleDays ->
+                viewModel.saveRule(item.rule.packageName, wifi, mobile, scheduleEnabled, scheduleStart, scheduleEnd, scheduleDays)
                 editing = null
             },
         )
@@ -175,6 +177,7 @@ fun RulesScreen(
     if (adding) {
         AddRuleSheet(
             apps = state.addableApps,
+            scheduleMasterEnabled = state.scheduleMasterEnabled,
             onDismiss = { adding = false },
             onSave = viewModel::saveRule,
         )

@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.VpnLock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
@@ -246,6 +247,15 @@ fun SettingsScreen(
                 )
             }
         }
+
+        SwitchCard(
+            icon = Icons.Filled.Schedule,
+            title = "Schedule",
+            subtitle = "Let apps be blocked during a time window you pick (e.g. overnight). Off by default " +
+                "— turning it on adds a \"Schedule\" option to each app's rule.",
+            checked = uiState.scheduleMasterEnabled,
+            onCheckedChange = viewModel::setScheduleMasterEnabled,
+        )
 
         SettingsCard(icon = Icons.Filled.VerifiedUser, title = "Network method", subtitle = "Detected automatically — VPN-based local firewall (no root required)")
 

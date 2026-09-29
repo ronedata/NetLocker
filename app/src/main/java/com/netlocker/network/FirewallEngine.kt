@@ -4,6 +4,8 @@ import android.net.Network
 import android.os.ParcelFileDescriptor
 import android.os.Process
 import com.netlocker.domain.model.NetworkRule
+import com.netlocker.domain.model.nowDayOfWeekIndex
+import com.netlocker.domain.model.nowMinuteOfDay
 import com.netlocker.network.packet.IpProtocol
 import com.netlocker.network.packet.ParsedPacket
 import com.netlocker.network.relay.SessionKey
@@ -62,6 +64,10 @@ class FirewallEngine(
     /** Told about each flow the rules blocked: (packageName, flowKey). Only called when the
      *  owning app was identified — flows that can't be attributed aren't counted for anyone. */
     private val onBlocked: (packageName: String, flowKey: String) -> Unit = { _, _ -> },
+    /** Snapshot of Settings' Schedule master switch, taken when this engine (and the
+     *  tunnel's exclusion list) was last (re)built — see [NetLockerVpnService.isFullyOpen]
+     *  and [NetworkRule.isWithinSchedule]. */
+    private val scheduleMasterEnabled: Boolean = false,
 ) {
     private val udpSessions = ConcurrentHashMap<SessionKey, UdpNatSession>()
     private val tcpSessions = ConcurrentHashMap<SessionKey, TcpNatSession>()
@@ -221,23 +227,33 @@ class FirewallEngine(
         }
         val snapshot = transportMonitor.snapshot.value
 
+        // A scheduled block wins over everything else while its window is open — evaluated
+        // fresh for every new flow, so this is always exactly correct for "now", unlike the
+        // once-a-minute ScheduleEvaluator (which only exists to cut an *already-open*
+        // session the instant a window starts; new flows never need that help).
+        val withinSchedule = scheduleMasterEnabled && rule.isWithinSchedule(nowMinuteOfDay(), nowDayOfWeekIndex())
+
         val network = when {
-            // Fully-open apps are excluded from the tunnel via addDisallowedApplication
-            // in NetLockerVpnService, so a packet should never reach this branch. If it
-            // somehow does (e.g. a VpnService exclusion-list bug), fail closed (drop)
-            // rather than risk silently widening access beyond what was configured.
-            // (A *disabled* rule reads as effectively open too — it isn't enforced.)
-            rule.isEffectivelyOpen -> null
+            withinSchedule -> null
+            // A fully-open, non-scheduled rule is excluded from the tunnel entirely via
+            // addDisallowedApplication in NetLockerVpnService, so a packet should never
+            // reach this branch. If it somehow does (e.g. an exclusion-list bug), fail
+            // closed (drop) rather than risk silently widening access beyond what was
+            // configured. (A *disabled* rule reads as effectively open too — it isn't
+            // enforced. A rule with a *live schedule* is deliberately kept inside the
+            // tunnel even while fully open outside its window — see isFullyOpen — so that
+            // legitimate case falls through to the ordinary branches below instead.)
+            rule.isEffectivelyOpen && !rule.scheduleEnabled -> null
             rule.effectiveWifiAllowed && snapshot.wifi != null -> snapshot.wifi
             rule.effectiveMobileDataAllowed && snapshot.cellular != null -> snapshot.cellular
             else -> null // required transport not currently up, or fully blocked
         }
-        Logger.d(TAG, "DECISION: uid=$uid dest=$destination rule=$rule wifiNet=${snapshot.wifi != null} cellNet=${snapshot.cellular != null} -> ${if (network != null) "ALLOW via $network" else "DROP"}")
+        Logger.d(TAG, "DECISION: uid=$uid dest=$destination rule=$rule withinSchedule=$withinSchedule wifiNet=${snapshot.wifi != null} cellNet=${snapshot.cellular != null} -> ${if (network != null) "ALLOW via $network" else "DROP"}")
         if (network == null) {
-            // Count only what the user's rules blocked — not the fail-closed drop of an app
-            // that should have bypassed the tunnel. Same source port + destination = the
-            // same attempt being retried (see AttemptDeduper).
-            if (!rule.isEffectivelyOpen) onBlocked(rule.packageName, "$protocol/$sourcePort/$destination")
+            // Count only what the user's rules (or schedule) actually blocked — not the
+            // fail-closed drop of an app that should have bypassed the tunnel. Same source
+            // port + destination = the same attempt being retried (see AttemptDeduper).
+            if (withinSchedule || !rule.isEffectivelyOpen) onBlocked(rule.packageName, "$protocol/$sourcePort/$destination")
             return null
         }
 
