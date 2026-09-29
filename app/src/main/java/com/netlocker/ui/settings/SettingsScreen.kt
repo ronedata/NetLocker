@@ -1,7 +1,9 @@
 package com.netlocker.ui.settings
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.TextFields
@@ -63,6 +66,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,6 +80,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netlocker.BuildConfig
 import com.netlocker.ui.components.CircleIconButton
@@ -97,6 +105,16 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) {
         viewModel.installIntentRequests.collect { intent -> context.startActivity(intent) }
+    }
+
+    // Re-read on every return to this screen (e.g. coming back from the system battery
+    // dialog or Settings) — never assumed, always the real current state.
+    val powerManager = remember { context.getSystemService(PowerManager::class.java) }
+    var batteryUnrestricted by remember {
+        mutableStateOf(powerManager?.isIgnoringBatteryOptimizations(context.packageName) == true)
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        batteryUnrestricted = powerManager?.isIgnoringBatteryOptimizations(context.packageName) == true
     }
 
     Column(
@@ -229,6 +247,59 @@ fun SettingsScreen(
                 onClick = { context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
             )
         }
+        SettingsCard(
+            icon = Icons.Filled.BatteryStd,
+            title = "Battery optimization",
+            subtitle = if (batteryUnrestricted) {
+                "NetLocker can run unrestricted in the background — good, this helps the firewall stay on."
+            } else {
+                "Samsung's battery management can stop the firewall while your phone is idle. Allow " +
+                    "NetLocker to run unrestricted to reduce that risk."
+            },
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (batteryUnrestricted) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.netLocker.allowed, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Unrestricted", color = MaterialTheme.netLocker.allowed, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            context.startActivity(
+                                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}")),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Icon(Icons.Filled.BatteryStd, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Allow unrestricted battery use", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                Text(
+                    "Samsung phones also have their own, separate battery settings: Settings → Apps → " +
+                        "NetLocker → Battery → set to \"Unrestricted\", and make sure NetLocker isn't in " +
+                        "Device Care's \"Sleeping apps\" or \"Deep sleeping apps\" list.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ClickRow(
+                    icon = Icons.Filled.Settings,
+                    title = "Open app settings",
+                    subtitle = "Find NetLocker's own Battery section here",
+                    enabled = true,
+                    onClick = {
+                        context.startActivity(
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+                        )
+                    },
+                )
+            }
+        }
+
         SettingsCard(
             icon = Icons.Filled.Tune,
             title = "Quick Settings tile",

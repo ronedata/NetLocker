@@ -37,6 +37,12 @@
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 
+    <!-- Lets Settings' "Battery optimization" card show the real system dialog asking to
+         exempt NetLocker from Doze/App Standby — a normal, auto-granted permission; it
+         only lets the app ask, the user still approves (or declines) the system's own
+         dialog every time it's shown. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <application
         android:name=".NetLockerApplication"
         android:allowBackup="false"

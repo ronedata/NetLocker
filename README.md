@@ -68,7 +68,12 @@ immediately rather than just hiding it.
 real status, and opens the app if the VPN permission hasn't been granted yet). The optional
 "Start when phone turns on" setting restarts it after a reboot or an app update, only if
 the VPN permission is still granted. Android's own "Always-on VPN" is linked from Settings
-but has not been verified with NetLocker on a device.
+but has not been verified with NetLocker on a device. Settings' "Battery optimization" card
+shows whether NetLocker is currently exempt from Android's Doze/App Standby battery
+management (verified on a real Samsung device: tapping "Allow unrestricted battery use"
+shows the real system dialog, and confirms exempt via `dumpsys deviceidle whitelist`
+afterwards) and links to the phone's own Battery/Device Care settings for the
+Samsung-specific restrictions Android's own API doesn't cover.
 
 ## 2. Why this needs a local VPN (read this before anything else)
 
