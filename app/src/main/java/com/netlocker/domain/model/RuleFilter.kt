@@ -44,9 +44,13 @@ fun countRules(rules: List<NetworkRule>): RuleCounts = RuleCounts(
     allowed = rules.count { RuleFilter.ALLOWED.matches(it.status) },
 )
 
-/** "1 blocked attempt today" / "12 blocked attempts today". */
-fun blockedTodayLabel(count: Int): String =
-    if (count == 1) "1 blocked attempt today" else "$count blocked attempts today"
+/** "1 connection blocked today" / "12 connections blocked today". */
+fun connectionsBlockedTodayLabel(count: Int): String =
+    if (count == 1) "1 connection blocked today" else "$count connections blocked today"
+
+/** "1 DNS lookup blocked today" / "12 DNS lookups blocked today". */
+fun dnsBlockedTodayLabel(count: Int): String =
+    if (count == 1) "1 DNS lookup blocked today" else "$count DNS lookups blocked today"
 
 /** "0 active rules" / "1 active rule" / "5 active rules" — "active" = enabled. */
 fun activeRulesLabel(activeCount: Int): String =

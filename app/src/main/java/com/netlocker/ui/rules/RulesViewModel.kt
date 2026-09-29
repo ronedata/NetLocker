@@ -38,7 +38,9 @@ data class RulesUiState(
     val query: String = "",
     /** Installed apps that don't have a rule yet — the candidates for "Add Rule". */
     val addableApps: List<InstalledApp> = emptyList(),
-    /** Connection attempts blocked today, by package name. */
+    /** Connection attempts blocked today, by package name — DNS lookups excluded, since
+     *  those can vastly outnumber real connection attempts and would make this number
+     *  more confusing than useful on a compact card; see App Details for the DNS count. */
     val blockedToday: Map<String, Int> = emptyMap(),
     /** Settings' Schedule master switch — while off, no schedule UI is shown here at all. */
     val scheduleMasterEnabled: Boolean = false,
@@ -93,7 +95,7 @@ class RulesViewModel(
             addableApps = allApps
                 .filter { it.packageName !in ruledPackages }
                 .sortedWith(compareBy({ it.isSystemApp }, { it.label.lowercase() })),
-            blockedToday = blocked.mapValues { it.value.count },
+            blockedToday = blocked.mapValues { it.value.connectionCount },
             isLoading = !loaded,
         )
     }

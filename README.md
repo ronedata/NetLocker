@@ -33,11 +33,12 @@ but stops enforcing it — the app behaves exactly as if it had no rule (verifie
 device: a disabled "Blocked" rule produced zero firewall decisions and the app went
 online; re-enabling it resumed dropping its traffic).
 
-The database is at **schema v5** (v2 added `isEnabled` and `createdAt`; v3 adds the
+The database is at **schema v7** (v2 added `isEnabled` and `createdAt`; v3 adds the
 `blocked_stats` table; v4 adds the per-rule schedule window; v5 adds which days of the
-week it applies to). Upgrading keeps every saved rule via explicit migrations — there is
-deliberately no destructive fallback, since silently wiping a firewall's rules would be a
-security regression.
+week it applies to; v6 splits DNS lookups out of the blocked-attempt count; v7 adds the
+optional blocked-destination log). Upgrading keeps every saved rule via explicit
+migrations — there is deliberately no destructive fallback, since silently wiping a
+firewall's rules would be a security regression.
 
 **Schedule.** Settings has an off-by-default "Schedule" master switch; only while it's on
 does each rule show a "Schedule" section (Edit Rule, Add Rule, App Details) to block that
@@ -49,11 +50,19 @@ excluded-app path), so the small relay cost is paid only by apps a user opts int
 scheduling.
 
 **Blocked attempts.** While the firewall runs, each connection a rule blocks is counted per
-app per day and shown on the Rules cards and App Details ("N blocked attempts today"). A
-"blocked attempt" is one new flow (TCP SYN / UDP flow, including DNS lookups): retransmits
-of the same flow are counted once per 30 seconds, so a retrying app doesn't inflate the
-number. Only flows attributed to an app with a restrictive rule are counted; counts are kept
-for 7 days.
+app per day and shown on the Rules cards ("N connections blocked today") and App Details,
+split into connections and DNS lookups since a busy blocked app's DNS retries can vastly
+outnumber its actual connection attempts. A "blocked attempt" is one new flow (TCP SYN /
+UDP flow): retransmits of the same flow are counted once per 30 seconds, so a retrying app
+doesn't inflate the number. Only flows attributed to an app with a restrictive rule are
+counted; counts are kept for 7 days.
+
+**Blocked destinations (optional, off by default).** Settings has a "Show blocked
+destinations" switch; while it's on, each blocked attempt's destination address is logged
+and can be viewed ("View recent attempts") on the app's details page — up to 50 per app,
+kept for 7 days. This is sensitive (close to a connection log), so nothing is written
+unless the switch is on, and turning it back off **deletes everything already logged**
+immediately rather than just hiding it.
 
 **Keeping the firewall running.** A Quick Settings tile toggles the firewall (it reflects the
 real status, and opens the app if the VPN permission hasn't been granted yet). The optional

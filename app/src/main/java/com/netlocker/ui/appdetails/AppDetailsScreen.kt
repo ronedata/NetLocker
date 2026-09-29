@@ -8,8 +8,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,6 +31,7 @@ import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
@@ -62,6 +61,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,19 +70,17 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netlocker.domain.model.NetworkAccessState
-import com.netlocker.domain.model.blockedTodayLabel
+import com.netlocker.domain.model.connectionsBlockedTodayLabel
+import com.netlocker.domain.model.dnsBlockedTodayLabel
 import com.netlocker.ui.components.AppIconImage
 import com.netlocker.ui.components.CircleIconButton
 import com.netlocker.ui.components.NetLockerCard
 import com.netlocker.ui.components.StatusPill
-import com.netlocker.ui.components.allowedStyle
 import com.netlocker.ui.components.rememberFirewallActions
-import com.netlocker.ui.components.style
 import com.netlocker.ui.rules.ScheduleForm
 import com.netlocker.ui.theme.netLocker
 import com.netlocker.util.formatBytes
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AppDetailsScreen(
     packageName: String,
@@ -208,7 +206,10 @@ fun AppDetailsScreen(
             }
         }
 
-        // Network Access
+        // Network Access — the one place this app's Wi-Fi/Mobile access is shown; a
+        // separate "Internet Access" status card used to repeat the very same Allowed/
+        // Blocked state again in a bigger box, which added length without adding anything.
+        val state = rule.accessState
         NetLockerCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionHeader(Icons.Filled.Wifi, colors.wifi, "Network Access")
@@ -226,6 +227,13 @@ fun AppDetailsScreen(
                     checked = mobile,
                     onCheckedChange = { viewModel.setMobileDataAllowed(wifi, it) },
                 )
+                if (!firewall.isActive && state != NetworkAccessState.ALLOWED) {
+                    Text(
+                        "The firewall is off, so this rule is saved but not enforced yet.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -263,67 +271,87 @@ fun AppDetailsScreen(
             }
         }
 
-        // Internet Access status
-        val state = rule.accessState
-        val style = state.style()
-        NetLockerCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(style.container)
-                        .border(1.dp, style.color.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                        .padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(style.icon, contentDescription = null, tint = style.color, modifier = Modifier.size(28.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(style.label, color = style.color, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text(state.description(), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    allowedStyle(wifi).let {
-                        StatusPill("Wi-Fi · ${if (wifi) "Allowed" else "Blocked"}", it.color, it.container, icon = Icons.Filled.Wifi)
-                    }
-                    allowedStyle(mobile).let {
-                        StatusPill("Mobile Data · ${if (mobile) "Allowed" else "Blocked"}", it.color, it.container, icon = Icons.Filled.SignalCellularAlt)
-                    }
-                }
-                if (!firewall.isActive && state != NetworkAccessState.ALLOWED) {
-                    Text(
-                        "The firewall is off, so this rule is saved but not enforced yet.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-
         // Blocked attempts today — only meaningful for an app the rules actually restrict.
         val blocked by viewModel.blockedToday.collectAsState()
         if (!rule.isEffectivelyOpen) {
+            val count = blocked?.count ?: 0
+            val showDestinations by viewModel.showBlockedDestinations.collectAsState()
+            var eventsExpanded by remember(rule.packageName) { mutableStateOf(false) }
+            val events by viewModel.recentBlockedEvents.collectAsState()
+
             NetLockerCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.Block, contentDescription = null, tint = colors.blocked, modifier = Modifier.size(22.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Blocked today", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        val count = blocked?.count ?: 0
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Block, contentDescription = null, tint = colors.blocked, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text("Blocked today", fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    }
+                    if (count == 0) {
                         Text(
-                            when {
-                                !firewall.isActive && count == 0 -> "The firewall is off, so nothing is being blocked."
-                                count == 0 -> "No connection attempts blocked yet today."
-                                else -> blockedTodayLabel(count) + (blocked?.lastBlockedAt?.let { " · last at ${formatClock(it)}" } ?: "")
-                            },
+                            if (!firewall.isActive) "The firewall is off, so nothing is being blocked." else "No connection attempts blocked yet today.",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    } else {
+                        val connectionCount = blocked?.connectionCount ?: 0
+                        val dnsCount = blocked?.dnsCount ?: 0
+                        if (connectionCount > 0) {
+                            BlockedCountRow(Icons.Filled.Block, connectionsBlockedTodayLabel(connectionCount))
+                        }
+                        if (dnsCount > 0) {
+                            BlockedCountRow(Icons.Filled.Search, dnsBlockedTodayLabel(dnsCount))
+                        }
+                        blocked?.lastBlockedAt?.let {
+                            Text("Last at ${formatClock(it)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (showDestinations) {
+                            TextButton(
+                                onClick = { eventsExpanded = !eventsExpanded },
+                                contentPadding = PaddingValues(0.dp),
+                            ) {
+                                Text(
+                                    if (eventsExpanded) "Hide recent attempts" else "View recent attempts",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                            if (eventsExpanded) {
+                                if (events.isEmpty()) {
+                                    Text(
+                                        "No destinations logged yet.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        events.forEach { event ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                            ) {
+                                                Text(
+                                                    event.destination,
+                                                    fontSize = 11.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.weight(1f),
+                                                )
+                                                Text(
+                                                    formatClock(event.atMillis),
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -398,13 +426,6 @@ fun AppDetailsScreen(
     }
 }
 
-private fun NetworkAccessState.description(): String = when (this) {
-    NetworkAccessState.ALLOWED -> "This app can access the internet."
-    NetworkAccessState.BLOCKED -> "This app has no internet access."
-    NetworkAccessState.WIFI_ONLY -> "This app can only use Wi-Fi."
-    NetworkAccessState.MOBILE_ONLY -> "This app can only use mobile data."
-}
-
 @Composable
 private fun SectionHeader(icon: ImageVector, tint: Color, title: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -414,6 +435,16 @@ private fun SectionHeader(icon: ImageVector, tint: Color, title: String) {
         ) { Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) }
         Spacer(Modifier.width(10.dp))
         Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    }
+}
+
+@Composable
+private fun BlockedCountRow(icon: ImageVector, label: String) {
+    val colors = MaterialTheme.netLocker
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = colors.blocked, modifier = Modifier.size(13.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

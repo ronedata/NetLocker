@@ -61,9 +61,11 @@ class FirewallEngine(
     private val connectionOwnerResolver: ConnectionOwnerResolver,
     private val protectSocket: (java.net.Socket) -> Boolean,
     private val protectDatagramSocket: (DatagramSocket) -> Boolean,
-    /** Told about each flow the rules blocked: (packageName, flowKey). Only called when the
-     *  owning app was identified — flows that can't be attributed aren't counted for anyone. */
-    private val onBlocked: (packageName: String, flowKey: String) -> Unit = { _, _ -> },
+    /** Told about each flow the rules blocked: (packageName, flowKey, isDns, destination).
+     *  Only called when the owning app was identified — flows that can't be attributed
+     *  aren't counted for anyone. */
+    private val onBlocked: (packageName: String, flowKey: String, isDns: Boolean, destination: String) -> Unit =
+        { _, _, _, _ -> },
     /** Snapshot of Settings' Schedule master switch, taken when this engine (and the
      *  tunnel's exclusion list) was last (re)built — see [NetLockerVpnService.isFullyOpen]
      *  and [NetworkRule.isWithinSchedule]. */
@@ -253,7 +255,10 @@ class FirewallEngine(
             // Count only what the user's rules (or schedule) actually blocked — not the
             // fail-closed drop of an app that should have bypassed the tunnel. Same source
             // port + destination = the same attempt being retried (see AttemptDeduper).
-            if (withinSchedule || !rule.isEffectivelyOpen) onBlocked(rule.packageName, "$protocol/$sourcePort/$destination")
+            if (withinSchedule || !rule.isEffectivelyOpen) {
+                val isDns = destination.port == DNS_PORT
+                onBlocked(rule.packageName, "$protocol/$sourcePort/$destination", isDns, "${destination.hostString}:${destination.port}")
+            }
             return null
         }
 
@@ -289,5 +294,6 @@ class FirewallEngine(
         private const val MAX_PACKET_SIZE = 32767
         private const val IDLE_SWEEP_INTERVAL_MS = 15_000L
         private const val TCP_IDLE_TIMEOUT_MS = 10 * 60_000L
+        private const val DNS_PORT = 53
     }
 }

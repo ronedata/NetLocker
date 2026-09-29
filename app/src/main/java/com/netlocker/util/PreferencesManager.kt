@@ -34,6 +34,18 @@ class PreferencesManager(private val context: Context) {
         val TEXT_SIZE = stringPreferencesKey("text_size")
         val AUTO_START_ON_BOOT = booleanPreferencesKey("auto_start_on_boot")
         val SCHEDULE_MASTER_ENABLED = booleanPreferencesKey("schedule_master_enabled")
+        val SHOW_BLOCKED_DESTINATIONS = booleanPreferencesKey("show_blocked_destinations")
+    }
+
+    /** Off by default: whether each blocked attempt's destination is logged (App Details
+     *  → "Blocked today" → recent attempts). This is sensitive — close to a connection
+     *  log — so nothing is written unless this is on, and turning it back off deletes
+     *  everything already logged; see ServiceLocator's wiring of BlockedAttemptTracker and
+     *  SettingsViewModel.setShowBlockedDestinations. */
+    val showBlockedDestinations: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_BLOCKED_DESTINATIONS] ?: false }
+
+    suspend fun setShowBlockedDestinations(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SHOW_BLOCKED_DESTINATIONS] = enabled }
     }
 
     /** Off by default: the master switch for the whole "block on a schedule" feature.

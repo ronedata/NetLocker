@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VpnLock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
@@ -255,6 +256,15 @@ fun SettingsScreen(
                 "— turning it on adds a \"Schedule\" option to each app's rule.",
             checked = uiState.scheduleMasterEnabled,
             onCheckedChange = viewModel::setScheduleMasterEnabled,
+        )
+
+        SwitchCard(
+            icon = Icons.Filled.Search,
+            title = "Show blocked destinations",
+            subtitle = "Log which address each blocked attempt was trying to reach, on each app's details page. " +
+                "Off by default — this is sensitive, so turning it back off deletes everything already logged.",
+            checked = uiState.showBlockedDestinations,
+            onCheckedChange = viewModel::setShowBlockedDestinations,
         )
 
         SettingsCard(icon = Icons.Filled.VerifiedUser, title = "Network method", subtitle = "Detected automatically — VPN-based local firewall (no root required)")

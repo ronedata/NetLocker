@@ -72,7 +72,7 @@ import com.netlocker.domain.model.ALL_DAYS_MASK
 import com.netlocker.domain.model.InstalledApp
 import com.netlocker.domain.model.NetworkRule
 import com.netlocker.domain.model.RuleStatus
-import com.netlocker.domain.model.blockedTodayLabel
+import com.netlocker.domain.model.connectionsBlockedTodayLabel
 import com.netlocker.domain.usecase.RuleWithApp
 import com.netlocker.ui.components.AppIconImage
 import com.netlocker.ui.components.CircleIconButton
@@ -168,7 +168,7 @@ fun RuleCard(
                         Icon(Icons.Filled.Block, contentDescription = null, tint = colors.blocked, modifier = Modifier.size(13.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            blockedTodayLabel(blockedToday),
+                            connectionsBlockedTodayLabel(blockedToday),
                             fontSize = 12.sp,
                             color = colors.blocked,
                             fontWeight = FontWeight.Medium,

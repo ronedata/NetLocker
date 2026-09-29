@@ -7,7 +7,9 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.netlocker.data.usage.AppDataUsageReader
 import com.netlocker.data.usage.DataUsage
 import com.netlocker.domain.model.AppWithRule
+import com.netlocker.domain.model.BlockedEvent
 import com.netlocker.domain.model.BlockedStat
+import com.netlocker.domain.repository.BlockedEventsRepository
 import com.netlocker.domain.repository.BlockedStatsRepository
 import com.netlocker.domain.usecase.DeleteRuleUseCase
 import com.netlocker.domain.usecase.ObserveAppWithRuleUseCase
@@ -39,6 +41,7 @@ class AppDetailsViewModel(
     private val usageReader: AppDataUsageReader,
     private val setScheduleUseCase: SetScheduleUseCase,
     blockedStatsRepository: BlockedStatsRepository,
+    blockedEventsRepository: BlockedEventsRepository,
     preferencesManager: PreferencesManager,
 ) : ViewModel() {
 
@@ -54,6 +57,14 @@ class AppDetailsViewModel(
     val blockedToday: StateFlow<BlockedStat?> = blockedStatsRepository.observeToday()
         .map { it[packageName] }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Settings' "Show blocked destinations" — while off, App Details never shows or fetches
+     *  the recent-attempts list (nothing is being logged for it to show anyway). */
+    val showBlockedDestinations: StateFlow<Boolean> = preferencesManager.showBlockedDestinations
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val recentBlockedEvents: StateFlow<List<BlockedEvent>> = blockedEventsRepository.observeRecent(packageName)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val appWithRule: StateFlow<AppWithRule?> = observeAppWithRuleUseCase(packageName)
         .map<AppWithRule, AppWithRule?> { it }
@@ -106,6 +117,7 @@ class AppDetailsViewModel(
                     ServiceLocator.appDataUsageReader,
                     ServiceLocator.setScheduleUseCase,
                     ServiceLocator.blockedStatsRepository,
+                    ServiceLocator.blockedEventsRepository,
                     ServiceLocator.preferencesManager,
                 )
             }

@@ -72,7 +72,11 @@ class NetLockerVpnService : VpnService() {
         ruleIndex = ServiceLocator.ruleIndex
         transportMonitor = ServiceLocator.transportMonitor
         connectionOwnerResolver = ConnectionOwnerResolver(this)
-        blockedTracker = BlockedAttemptTracker(ServiceLocator.blockedStatsRepository)
+        blockedTracker = BlockedAttemptTracker(
+            ServiceLocator.blockedStatsRepository,
+            ServiceLocator.blockedEventsRepository,
+            ServiceLocator.preferencesManager.showBlockedDestinations,
+        )
         scheduleEvaluator = ScheduleEvaluator(
             ServiceLocator.preferencesManager.scheduleMasterEnabled,
             networkRuleRepository,

@@ -7,14 +7,21 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.netlocker.data.local.dao.AppRuleDao
+import com.netlocker.data.local.dao.BlockedEventDao
 import com.netlocker.data.local.dao.BlockedStatDao
 import com.netlocker.data.local.entity.AppRuleEntity
+import com.netlocker.data.local.entity.BlockedEventEntity
 import com.netlocker.data.local.entity.BlockedStatEntity
 
-@Database(entities = [AppRuleEntity::class, BlockedStatEntity::class], version = 5, exportSchema = true)
+@Database(
+    entities = [AppRuleEntity::class, BlockedStatEntity::class, BlockedEventEntity::class],
+    version = 7,
+    exportSchema = true,
+)
 abstract class NetLockerDatabase : RoomDatabase() {
     abstract fun appRuleDao(): AppRuleDao
     abstract fun blockedStatDao(): BlockedStatDao
+    abstract fun blockedEventDao(): BlockedEventDao
 
     companion object {
         @Volatile private var instance: NetLockerDatabase? = null
@@ -65,6 +72,31 @@ abstract class NetLockerDatabase : RoomDatabase() {
             }
         }
 
+        /** v5 -> v6: splits how many of today's blocked attempts were DNS lookups out of
+         *  the existing total (existing rows can't be split retroactively, so they start
+         *  at 0 — the total they already have is unaffected). */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE blocked_stats ADD COLUMN dnsCount INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** v6 -> v7: adds the optional per-attempt destination log (Settings' "Show blocked
+         *  destinations", off by default) — a new table only, nothing existing is touched. */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Must match exactly what Room itself would generate for `@PrimaryKey(autoGenerate
+                // = true) val id: Long` — `id INTEGER PRIMARY KEY AUTOINCREMENT` (SQLite still
+                // reports that column as nullable in PRAGMA table_info, which fails Room's
+                // startup schema validation against the NOT NULL Room expects for a Long).
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS blocked_events (" +
+                        "id INTEGER NOT NULL, packageName TEXT NOT NULL, destination TEXT NOT NULL, " +
+                        "atMillis INTEGER NOT NULL, day INTEGER NOT NULL, PRIMARY KEY(id))",
+                )
+            }
+        }
+
         fun getInstance(context: Context): NetLockerDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -72,7 +104,7 @@ abstract class NetLockerDatabase : RoomDatabase() {
                     NetLockerDatabase::class.java,
                     "netlocker.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                     .also { instance = it }
             }

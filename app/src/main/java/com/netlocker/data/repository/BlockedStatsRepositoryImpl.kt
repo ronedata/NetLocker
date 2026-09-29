@@ -26,13 +26,13 @@ class BlockedStatsRepositoryImpl(private val dao: BlockedStatDao) : BlockedStats
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeToday(): Flow<Map<String, BlockedStat>> =
         dayTicker.flatMapLatest { day -> dao.observeDay(day) }.map { rows ->
-            rows.associate { it.packageName to BlockedStat(it.packageName, it.count, it.lastBlockedAt) }
+            rows.associate { it.packageName to BlockedStat(it.packageName, it.count, it.dnsCount, it.lastBlockedAt) }
         }
 
-    override suspend fun record(packageName: String, delta: Int, atMillis: Long) {
+    override suspend fun record(packageName: String, delta: Int, dnsDelta: Int, atMillis: Long) {
         val day = dayOf(atMillis)
         dao.ensureRow(packageName, day)
-        dao.addToRow(packageName, day, delta, atMillis)
+        dao.addToRow(packageName, day, delta, dnsDelta, atMillis)
         dao.pruneBefore(day - RETENTION_DAYS)
     }
 

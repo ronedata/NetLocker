@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 interface BlockedStatsRepository {
     fun observeToday(): Flow<Map<String, BlockedStat>>
 
-    /** Adds [delta] blocked attempts for [packageName] to today's total. */
-    suspend fun record(packageName: String, delta: Int, atMillis: Long)
+    /** Adds [delta] blocked attempts for [packageName] to today's total, [dnsDelta] of
+     *  which were DNS lookups (must be <= delta). */
+    suspend fun record(packageName: String, delta: Int, dnsDelta: Int, atMillis: Long)
 }

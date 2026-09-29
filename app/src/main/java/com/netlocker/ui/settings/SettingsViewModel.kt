@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.netlocker.domain.model.AppUpdate
 import com.netlocker.domain.model.UpdateCheckResult
+import com.netlocker.domain.repository.BlockedEventsRepository
 import com.netlocker.domain.repository.UpdateRepository
 import com.netlocker.update.ApkInstaller
 import com.netlocker.update.DownloadOutcome
@@ -32,10 +33,15 @@ data class SettingsUiState(
     val textSize: TextSize = TextSize.DEFAULT,
     val autoStartOnBoot: Boolean = false,
     val scheduleMasterEnabled: Boolean = false,
+    val showBlockedDestinations: Boolean = false,
 )
 
 /** Never assumes success — mirrors exactly what the GitHub check / download actually
  *  returned at each step (spec's "no fake success" principle applies to updates too). */
+/** `combine` has no built-in 4-tuple; this is only used to shuttle four booleans out of
+ *  one `combine` call above. */
+private data class Quadruple<out A, out B, out C, out D>(val first: A, val second: B, val third: C, val fourth: D)
+
 sealed interface UpdateUiState {
     data object Idle : UpdateUiState
     data object Checking : UpdateUiState
@@ -50,6 +56,7 @@ class SettingsViewModel(
     private val preferencesManager: PreferencesManager,
     private val updateRepository: UpdateRepository,
     private val apkInstaller: ApkInstaller,
+    private val blockedEventsRepository: BlockedEventsRepository,
 ) : ViewModel() {
 
     // Two groups, because `combine` only takes five typed flows at once.
@@ -62,16 +69,21 @@ class SettingsViewModel(
         SettingsUiState(theme = theme, showSystemApps = showSystemApps, autoRefresh = autoRefresh, textSize = textSize)
     }
 
-    val uiState: StateFlow<SettingsUiState> = combine(
-        displayPrefs,
+    private val moreSwitches = combine(
         preferencesManager.minimalNotification,
         preferencesManager.autoStartOnBoot,
         preferencesManager.scheduleMasterEnabled,
-    ) { display, minimalNotification, autoStartOnBoot, scheduleMasterEnabled ->
+        preferencesManager.showBlockedDestinations,
+    ) { minimalNotification, autoStartOnBoot, scheduleMasterEnabled, showBlockedDestinations ->
+        Quadruple(minimalNotification, autoStartOnBoot, scheduleMasterEnabled, showBlockedDestinations)
+    }
+
+    val uiState: StateFlow<SettingsUiState> = combine(displayPrefs, moreSwitches) { display, more ->
         display.copy(
-            minimalNotification = minimalNotification,
-            autoStartOnBoot = autoStartOnBoot,
-            scheduleMasterEnabled = scheduleMasterEnabled,
+            minimalNotification = more.first,
+            autoStartOnBoot = more.second,
+            scheduleMasterEnabled = more.third,
+            showBlockedDestinations = more.fourth,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
@@ -85,6 +97,14 @@ class SettingsViewModel(
     fun setAutoStartOnBoot(enabled: Boolean) = viewModelScope.launch { preferencesManager.setAutoStartOnBoot(enabled) }
 
     fun setScheduleMasterEnabled(enabled: Boolean) = viewModelScope.launch { preferencesManager.setScheduleMasterEnabled(enabled) }
+
+    /** Turning this off deletes every already-logged destination immediately — the point
+     *  of the toggle is that this data shouldn't exist once the user says so, not just
+     *  that it's hidden while off. */
+    fun setShowBlockedDestinations(enabled: Boolean) = viewModelScope.launch {
+        preferencesManager.setShowBlockedDestinations(enabled)
+        if (!enabled) blockedEventsRepository.clearAll()
+    }
 
     private val _updateState = MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
     val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
@@ -154,6 +174,7 @@ class SettingsViewModel(
                     ServiceLocator.preferencesManager,
                     ServiceLocator.updateRepository,
                     ServiceLocator.apkInstaller,
+                    ServiceLocator.blockedEventsRepository,
                 )
             }
         }

@@ -24,8 +24,18 @@ class BlockedStatTest {
         assertEquals(24 * 60 * 60_000L, millisUntilNextDay(millis(2026, 9, 28, 0, 0), dhaka))
     }
 
-    @Test fun `label pluralises`() {
-        assertEquals("1 blocked attempt today", blockedTodayLabel(1))
-        assertEquals("12 blocked attempts today", blockedTodayLabel(12))
+    @Test fun `connections label pluralises`() {
+        assertEquals("1 connection blocked today", connectionsBlockedTodayLabel(1))
+        assertEquals("12 connections blocked today", connectionsBlockedTodayLabel(12))
+    }
+
+    @Test fun `dns label pluralises`() {
+        assertEquals("1 DNS lookup blocked today", dnsBlockedTodayLabel(1))
+        assertEquals("12 DNS lookups blocked today", dnsBlockedTodayLabel(12))
+    }
+
+    @Test fun `connectionCount is the total minus the dns count`() {
+        val stat = BlockedStat(packageName = "pkg", count = 10, dnsCount = 7, lastBlockedAt = 0L)
+        assertEquals(3, stat.connectionCount)
     }
 }
