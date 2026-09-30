@@ -6,6 +6,7 @@ import android.os.Process
 import com.netlocker.domain.model.NetworkRule
 import com.netlocker.domain.model.nowDayOfWeekIndex
 import com.netlocker.domain.model.nowMinuteOfDay
+import com.netlocker.network.packet.IpPacket
 import com.netlocker.network.packet.IpProtocol
 import com.netlocker.network.packet.ParsedPacket
 import com.netlocker.network.relay.SessionKey
@@ -55,7 +56,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class FirewallEngine(
     private val tunFd: ParcelFileDescriptor,
-    private val clientAddress: InetAddress,
+    private val clientAddressV4: InetAddress,
+    private val clientAddressV6: InetAddress,
     private val ruleIndex: RuleIndex,
     private val transportMonitor: TransportMonitor,
     private val connectionOwnerResolver: ConnectionOwnerResolver,
@@ -140,6 +142,7 @@ class FirewallEngine(
     }
 
     private fun handleUdp(packet: ParsedPacket.Udp, scope: CoroutineScope) {
+        val clientAddress = clientAddressFor(packet.ip)
         val key = SessionKey(
             protocol = IpProtocol.UDP,
             sourcePort = packet.udp.sourcePort,
@@ -154,6 +157,7 @@ class FirewallEngine(
         }
 
         val decision = decideForNewFlow(
+            clientAddress = clientAddress,
             protocol = IpProtocol.UDP,
             sourcePort = packet.udp.sourcePort,
             destination = InetSocketAddress(packet.ip.destinationInetAddress(), packet.udp.destinationPort),
@@ -175,6 +179,7 @@ class FirewallEngine(
     }
 
     private fun handleTcp(packet: ParsedPacket.Tcp, scope: CoroutineScope) {
+        val clientAddress = clientAddressFor(packet.ip)
         val key = SessionKey(
             protocol = IpProtocol.TCP,
             sourcePort = packet.tcp.sourcePort,
@@ -191,6 +196,7 @@ class FirewallEngine(
         if (!packet.tcp.isSyn) return // no session and not a new connection attempt — drop stray segment
 
         val decision = decideForNewFlow(
+            clientAddress = clientAddress,
             protocol = IpProtocol.TCP,
             sourcePort = packet.tcp.sourcePort,
             destination = InetSocketAddress(packet.ip.destinationInetAddress(), packet.tcp.destinationPort),
@@ -209,10 +215,17 @@ class FirewallEngine(
         session.beginHandshake(scope, packet.tcp.sequenceNumber)
     }
 
+    /** Which of the tunnel's two fixed client addresses (see NetLockerVpnService)
+     *  actually owns this packet, so UID resolution and any relayed reply use the
+     *  address family the app itself is using — mixing them up would make
+     *  [ConnectionOwnerResolver] look up the wrong (nonexistent) local endpoint. */
+    private fun clientAddressFor(ip: IpPacket): InetAddress =
+        if (ip.destinationAddress.size == 16) clientAddressV6 else clientAddressV4
+
     /** Runs the actual per-app policy decision for a brand-new flow. Returns null if
      *  the flow must be blocked (unknown uid, no rule match, or required transport
      *  currently unavailable) — never guesses in the app's favour. */
-    private fun decideForNewFlow(protocol: Int, sourcePort: Int, destination: InetSocketAddress): FlowDecision? {
+    private fun decideForNewFlow(clientAddress: InetAddress, protocol: Int, sourcePort: Int, destination: InetSocketAddress): FlowDecision? {
         val local = InetSocketAddress(clientAddress, sourcePort)
         val uid = connectionOwnerResolver.resolveUid(protocol, local, destination)
         if (uid == Process.INVALID_UID) {

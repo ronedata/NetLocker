@@ -2,6 +2,7 @@ package com.netlocker.network.relay
 
 import com.netlocker.network.packet.Checksum
 import com.netlocker.network.packet.IPv4Packet
+import com.netlocker.network.packet.IPv6Packet
 import com.netlocker.network.packet.IpProtocol
 import com.netlocker.network.packet.UdpHeader
 import com.netlocker.util.Logger
@@ -130,7 +131,7 @@ class UdpNatSession(
         System.arraycopy(udpHeader, 0, segment, 0, udpHeader.size)
         System.arraycopy(data, offset, segment, udpHeader.size, length)
 
-        val udpChecksum = Checksum.computeWithIpv4PseudoHeader(
+        val udpChecksum = Checksum.computeWithPseudoHeader(
             sourceAddress = sourceAddrBytes,
             destAddress = destAddrBytes,
             protocol = IpProtocol.UDP,
@@ -140,13 +141,22 @@ class UdpNatSession(
         segment[6] = (udpChecksum shr 8).toByte()
         segment[7] = (udpChecksum and 0xFF).toByte()
 
-        val ipHeader = IPv4Packet.buildHeader(
-            sourceAddress = sourceAddrBytes,
-            destinationAddress = destAddrBytes,
-            protocol = IpProtocol.UDP,
-            payloadLength = segment.size,
-            identification = idCounter.incrementAndGet() and 0xFFFF,
-        )
+        val ipHeader = if (destAddrBytes.size == 16) {
+            IPv6Packet.buildHeader(
+                sourceAddress = sourceAddrBytes,
+                destinationAddress = destAddrBytes,
+                protocol = IpProtocol.UDP,
+                payloadLength = segment.size,
+            )
+        } else {
+            IPv4Packet.buildHeader(
+                sourceAddress = sourceAddrBytes,
+                destinationAddress = destAddrBytes,
+                protocol = IpProtocol.UDP,
+                payloadLength = segment.size,
+                identification = idCounter.incrementAndGet() and 0xFFFF,
+            )
+        }
 
         return ipHeader + segment
     }

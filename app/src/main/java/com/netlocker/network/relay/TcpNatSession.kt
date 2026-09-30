@@ -2,6 +2,7 @@ package com.netlocker.network.relay
 
 import com.netlocker.network.packet.Checksum
 import com.netlocker.network.packet.IPv4Packet
+import com.netlocker.network.packet.IPv6Packet
 import com.netlocker.network.packet.IpProtocol
 import com.netlocker.network.packet.TcpHeader
 import com.netlocker.util.Logger
@@ -227,7 +228,7 @@ class TcpNatSession(
         System.arraycopy(tcpHeader, 0, segment, 0, tcpHeader.size)
         if (payloadLength > 0) System.arraycopy(payload, 0, segment, tcpHeader.size, payloadLength)
 
-        val checksum = Checksum.computeWithIpv4PseudoHeader(
+        val checksum = Checksum.computeWithPseudoHeader(
             sourceAddress = sourceAddrBytes,
             destAddress = destAddrBytes,
             protocol = IpProtocol.TCP,
@@ -237,13 +238,22 @@ class TcpNatSession(
         segment[16] = (checksum shr 8).toByte()
         segment[17] = (checksum and 0xFF).toByte()
 
-        val ipHeader = IPv4Packet.buildHeader(
-            sourceAddress = sourceAddrBytes,
-            destinationAddress = destAddrBytes,
-            protocol = IpProtocol.TCP,
-            payloadLength = segment.size,
-            identification = idCounter.incrementAndGet() and 0xFFFF,
-        )
+        val ipHeader = if (destAddrBytes.size == 16) {
+            IPv6Packet.buildHeader(
+                sourceAddress = sourceAddrBytes,
+                destinationAddress = destAddrBytes,
+                protocol = IpProtocol.TCP,
+                payloadLength = segment.size,
+            )
+        } else {
+            IPv4Packet.buildHeader(
+                sourceAddress = sourceAddrBytes,
+                destinationAddress = destAddrBytes,
+                protocol = IpProtocol.TCP,
+                payloadLength = segment.size,
+                identification = idCounter.incrementAndGet() and 0xFFFF,
+            )
+        }
 
         tunWriter.write(ipHeader + segment, ipHeader.size + segment.size)
     }

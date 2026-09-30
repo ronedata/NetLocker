@@ -1,7 +1,5 @@
 package com.netlocker.network.packet
 
-import java.net.InetAddress
-
 /** Transport protocol numbers relevant to enforcement (IANA assigned numbers). */
 object IpProtocol {
     const val ICMP = 1
@@ -10,27 +8,18 @@ object IpProtocol {
 }
 
 /**
- * Parsed view over an IPv4 header sitting at the front of a raw packet buffer.
- *
- * Scope note (see README "Known limitations"): NetLocker's relay path only
- * understands IPv4. IPv6-only carriers (common with some operators' 464XLAT / VoLTE
- * data setups) will not have their mobile-data traffic attributed or relayed by this
- * engine. Packets that are not IPv4 are detected and dropped for restricted apps
- * rather than silently mis-handled.
+ * Parsed view over an IPv4 header sitting at the front of a raw packet buffer. See
+ * [IPv6Packet] for the IPv6 counterpart — together they're the two [IpPacket]
+ * implementations the rest of the engine works with.
  */
 class IPv4Packet private constructor(
-    val raw: ByteArray,
-    val totalLength: Int,
-    val headerLength: Int,
-    val protocol: Int,
-    val sourceAddress: ByteArray,
-    val destinationAddress: ByteArray,
-) {
-    val payloadOffset: Int get() = headerLength
-    val payloadLength: Int get() = totalLength - headerLength
-
-    fun sourceInetAddress(): InetAddress = InetAddress.getByAddress(sourceAddress)
-    fun destinationInetAddress(): InetAddress = InetAddress.getByAddress(destinationAddress)
+    override val raw: ByteArray,
+    override val totalLength: Int,
+    override val headerLength: Int,
+    override val protocol: Int,
+    override val sourceAddress: ByteArray,
+    override val destinationAddress: ByteArray,
+) : IpPacket {
 
     companion object {
         private const val MIN_HEADER_BYTES = 20

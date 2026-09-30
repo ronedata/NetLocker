@@ -28,10 +28,15 @@ object Checksum {
     }
 
     /**
-     * TCP/UDP checksum, which is computed over the IPv4 "pseudo-header" (source dest,
-     * protocol, segment length) followed by the actual segment — RFC 793 / RFC 768.
+     * TCP/UDP checksum, computed over a pseudo-header (source, destination, protocol,
+     * segment length) followed by the actual segment — RFC 793 / RFC 768 for IPv4, RFC
+     * 8200 §8.1 for IPv6. One implementation covers both address families: ones'-
+     * complement addition is order-independent, and IPv6's pseudo-header just sums more
+     * address words (16 bytes vs 4) plus the same zero-padded protocol byte and segment
+     * length — so summing whatever length [sourceAddress]/[destAddress] actually are is
+     * correct for either family without needing to know which one it is.
      */
-    fun computeWithIpv4PseudoHeader(
+    fun computeWithPseudoHeader(
         sourceAddress: ByteArray,
         destAddress: ByteArray,
         protocol: Int,
@@ -39,25 +44,27 @@ object Checksum {
         segmentLength: Int,
     ): Int {
         var sum = 0
-        sum += ((sourceAddress[0].toInt() and 0xFF) shl 8) or (sourceAddress[1].toInt() and 0xFF)
-        sum += ((sourceAddress[2].toInt() and 0xFF) shl 8) or (sourceAddress[3].toInt() and 0xFF)
-        sum += ((destAddress[0].toInt() and 0xFF) shl 8) or (destAddress[1].toInt() and 0xFF)
-        sum += ((destAddress[2].toInt() and 0xFF) shl 8) or (destAddress[3].toInt() and 0xFF)
+        sum += sumBigEndianWords(sourceAddress, sourceAddress.size)
+        sum += sumBigEndianWords(destAddress, destAddress.size)
         sum += protocol and 0xFF
         sum += segmentLength
-
-        var i = 0
-        while (i < segmentLength - 1) {
-            val word = ((segment[i].toInt() and 0xFF) shl 8) or (segment[i + 1].toInt() and 0xFF)
-            sum += word
-            i += 2
-        }
-        if (i < segmentLength) {
-            sum += (segment[i].toInt() and 0xFF) shl 8
-        }
+        sum += sumBigEndianWords(segment, segmentLength)
         while (sum shr 16 != 0) {
             sum = (sum and 0xFFFF) + (sum ushr 16)
         }
         return sum.inv() and 0xFFFF
+    }
+
+    private fun sumBigEndianWords(data: ByteArray, length: Int): Int {
+        var sum = 0
+        var i = 0
+        while (i < length - 1) {
+            sum += ((data[i].toInt() and 0xFF) shl 8) or (data[i + 1].toInt() and 0xFF)
+            i += 2
+        }
+        if (i < length) {
+            sum += (data[i].toInt() and 0xFF) shl 8
+        }
+        return sum
     }
 }

@@ -148,6 +148,12 @@ class NetLockerVpnService : VpnService() {
             .setSession(getString(R.string.app_name))
             .addAddress(TUNNEL_ADDRESS, TUNNEL_PREFIX_LENGTH)
             .addRoute("0.0.0.0", 0)
+            // Without an IPv6 address/route, the OS considers this VPN network IPv4-only,
+            // so any IPv6-only destination is simply unreachable for a tunneled app (not
+            // just unfiltered — genuinely broken). Adding both makes FirewallEngine's IPv6
+            // support (IPv6Packet, see network/packet) actually reachable end to end.
+            .addAddress(TUNNEL_ADDRESS_V6, TUNNEL_PREFIX_LENGTH_V6)
+            .addRoute("::", 0)
             .addDnsServer(FALLBACK_DNS)
             .setMtu(TUNNEL_MTU)
             // Deliberately left in blocking mode (the default): FirewallEngine reads the
@@ -181,7 +187,8 @@ class NetLockerVpnService : VpnService() {
         excludedPackages = fullyOpenPackages
         engine = FirewallEngine(
             tunFd = newFd,
-            clientAddress = InetAddress.getByName(TUNNEL_ADDRESS),
+            clientAddressV4 = InetAddress.getByName(TUNNEL_ADDRESS),
+            clientAddressV6 = InetAddress.getByName(TUNNEL_ADDRESS_V6),
             ruleIndex = ruleIndex,
             transportMonitor = transportMonitor,
             connectionOwnerResolver = connectionOwnerResolver,
@@ -355,6 +362,9 @@ class NetLockerVpnService : VpnService() {
         // Arbitrary, unlikely-to-collide private subnet for the tun interface itself.
         private const val TUNNEL_ADDRESS = "10.111.222.1"
         private const val TUNNEL_PREFIX_LENGTH = 24
+        // Unique Local Address (RFC 4193) — IPv6's equivalent of a private subnet.
+        private const val TUNNEL_ADDRESS_V6 = "fd00:6e6c:6b72::1" // "nlkr" spelled out in hex, arbitrarily
+        private const val TUNNEL_PREFIX_LENGTH_V6 = 64
         private const val TUNNEL_MTU = 1500
         private const val FALLBACK_DNS = "8.8.8.8"
 

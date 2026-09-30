@@ -138,7 +138,7 @@ NetLocker
       ├── TransportMonitor      tracks live Wi-Fi/Cellular Network handles independently
       ├── ConnectionOwnerResolver  packet -> owning app, via getConnectionOwnerUid()
       ├── RuleIndex             fast uid -> rule lookup for the packet hot path
-      ├── packet/               IPv4/TCP/UDP header parsing + checksums
+      ├── packet/               IPv4/IPv6/TCP/UDP header parsing + checksums
       └── relay/                UDP + TCP session relay for partially-restricted apps
 ```
 
@@ -215,9 +215,13 @@ remains a possible *future* optional enhancement, not something this build depen
   ("stop-and-wait") flow control, no SACK, no window scaling, no reassembly buffer.
   Expect **reduced throughput on large transfers** for apps in "Wi-Fi only" or "Mobile
   Data only" mode. Fully-allowed and fully-blocked apps have none of these caveats.
-- **IPv4 only.** An IPv6-only mobile carrier path (some operators' 464XLAT setups) will
-  not be attributed or relayed by the current engine. This is a real gap, not
-  theoretical — worth verifying on your specific carrier.
+- **IPv6 is relayed, but only for ordinary TCP/UDP.** The tunnel carries both IPv4 and
+  IPv6 (an IPv6-only destination used to be simply unreachable for a restricted app —
+  not just unfiltered, genuinely broken; this is now fixed). The one remaining scope
+  limit: a packet using an IPv6 extension header (Hop-by-Hop Options, Routing, Fragment,
+  etc.) is detected and dropped for restricted apps rather than mis-handled, the same
+  fail-closed treatment as an unrecognized protocol — see `IPv6Packet`'s doc comment.
+  Ordinary TCP/UDP traffic, the overwhelming majority of real apps, does not use these.
 - **ICMP (ping) is not attributed** — `getConnectionOwnerUid()` only supports TCP/UDP,
   so ICMP from an app inside the tunnel (partial/blocked apps) is dropped rather than
   guessed at.
