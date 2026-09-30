@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,12 +84,18 @@ fun AppsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val needsUsageAccess by viewModel.needsUsageAccessPrompt.collectAsState()
+    val isApplyingUsageSort by viewModel.isApplyingUsageSort.collectAsState()
     val firewall = rememberFirewallActions()
     val context = LocalContext.current
     var overflowOpen by remember { mutableStateOf(false) }
     var sortOpen by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResumeCheckUsageAccess() }
+
+    // A changed sort should always be seen from the top of the list, not wherever the
+    // user happened to have scrolled to under the *previous* order.
+    LaunchedEffect(state.sort) { listState.scrollToItem(0) }
 
     if (needsUsageAccess) {
         AlertDialog(
@@ -187,11 +195,13 @@ fun AppsScreen(
         }
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 10.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             when {
+                isApplyingUsageSort -> item(key = "sorting") { AppListLoading(message = "Sorting by data used…") }
                 state.isLoading -> item(key = "loading") { AppListLoading() }
                 state.apps.isEmpty() -> item(key = "empty") {
                     EmptyState(

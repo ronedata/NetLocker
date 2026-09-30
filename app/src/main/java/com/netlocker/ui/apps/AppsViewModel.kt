@@ -53,12 +53,18 @@ class AppsViewModel(
     private val controls = MutableStateFlow(Controls())
     private val usageByUid = MutableStateFlow<Map<Int, DataUsage>>(emptyMap())
     private val needsUsageAccess = MutableStateFlow(false)
+    private val isSortingByUsage = MutableStateFlow(false)
 
     /** The sort the user asked for while usage access was still missing — applied
      *  automatically if they grant it and come back, so they don't have to re-select it. */
     private var pendingUsageSort: AppSort? = null
 
     val needsUsageAccessPrompt: StateFlow<Boolean> = needsUsageAccess
+
+    /** True while a data-usage sort's own query (one real NetworkStatsManager read per
+     *  network type, across every app) is still running — the screen shows a loading
+     *  state instead of applying the new sort to a list that isn't ready yet. */
+    val isApplyingUsageSort: StateFlow<Boolean> = isSortingByUsage
 
     val uiState: StateFlow<AppsUiState> = combine(
         observeAppsWithRulesUseCase(includeSystemApps = true),
@@ -135,8 +141,13 @@ class AppsViewModel(
 
     private fun applyUsageSort(sort: AppSort) {
         viewModelScope.launch {
-            usageByUid.value = usageReader.todayUsageForAllUids() ?: emptyMap()
-            controls.update { it.copy(sort = sort) }
+            isSortingByUsage.value = true
+            try {
+                usageByUid.value = usageReader.todayUsageForAllUids() ?: emptyMap()
+                controls.update { it.copy(sort = sort) }
+            } finally {
+                isSortingByUsage.value = false
+            }
         }
     }
 
