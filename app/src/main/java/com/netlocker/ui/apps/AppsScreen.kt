@@ -21,8 +21,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
@@ -75,6 +77,7 @@ import com.netlocker.ui.theme.netLocker
 fun AppsScreen(
     onOpenAppDetails: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenDataUsage: () -> Unit,
     viewModel: AppsViewModel = viewModel(factory = AppsViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -120,7 +123,13 @@ fun AppsScreen(
                     CircleIconButton(Icons.Filled.MoreVert, "More options", onClick = { overflowOpen = true })
                     DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
                         DropdownMenuItem(
+                            text = { Text("Data usage today") },
+                            leadingIcon = { Icon(Icons.Filled.DataUsage, contentDescription = null) },
+                            onClick = { overflowOpen = false; onOpenDataUsage() },
+                        )
+                        DropdownMenuItem(
                             text = { Text("Refresh apps") },
+                            leadingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
                             onClick = { overflowOpen = false; viewModel.refreshApps() },
                         )
                     }

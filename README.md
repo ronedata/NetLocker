@@ -23,6 +23,11 @@ installed app, without rooting the phone or installing Shizuku/ADB tooling. You 
   Wi-Fi Only / Mobile Only / Allowed), search, and per-rule Edit / Disable / Delete. Add a
   rule from a picker of apps that don't have one yet, filterable by the same category chips
   as the Apps tab
+- **Data usage today** (Apps tab's overflow menu) — every app that used Wi-Fi or Mobile
+  Data today in one list, most-used first, with a totals card at the top. Same
+  `NetworkStatsManager` source and "Usage access" permission as App Details and the Apps
+  tab's usage sorts; the totals are a sum across identifiable installed apps, not a claim
+  of the phone's literal system-wide total
 - A details screen per app showing its exact current access state
 - Rules that persist across app restarts and device reboots
 - Honest status reporting — a rule is never shown as "applied" unless it actually is: the

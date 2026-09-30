@@ -27,6 +27,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.netlocker.ui.apps.AppsScreen
 import com.netlocker.ui.appdetails.AppDetailsScreen
+import com.netlocker.ui.datausage.DataUsageScreen
 import com.netlocker.ui.rules.RulesScreen
 import com.netlocker.ui.settings.SettingsScreen
 import com.netlocker.ui.theme.netLocker
@@ -36,6 +37,7 @@ private object Routes {
     const val RULES = "rules"
     const val SETTINGS = "settings"
     const val APP_DETAILS = "app_details/{packageName}"
+    const val DATA_USAGE = "data_usage"
     fun appDetails(packageName: String) = "app_details/$packageName"
 }
 
@@ -72,7 +74,11 @@ fun NetLockerApp() {
                 AppsScreen(
                     onOpenAppDetails = { navController.navigate(Routes.appDetails(it)) },
                     onOpenSettings = { navController.navigateTopLevel(Routes.SETTINGS) },
+                    onOpenDataUsage = { navController.navigate(Routes.DATA_USAGE) },
                 )
+            }
+            composable(Routes.DATA_USAGE) {
+                DataUsageScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.RULES) {
                 RulesScreen()
