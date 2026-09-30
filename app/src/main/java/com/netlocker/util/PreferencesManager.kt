@@ -35,6 +35,16 @@ class PreferencesManager(private val context: Context) {
         val AUTO_START_ON_BOOT = booleanPreferencesKey("auto_start_on_boot")
         val SCHEDULE_MASTER_ENABLED = booleanPreferencesKey("schedule_master_enabled")
         val SHOW_BLOCKED_DESTINATIONS = booleanPreferencesKey("show_blocked_destinations")
+        val QUICK_SETTINGS_TILE_ADDED = booleanPreferencesKey("quick_settings_tile_added")
+    }
+
+    /** Off by default: whether the Quick Settings tile is currently added to the panel.
+     *  Only ever set from real system callbacks (FirewallTileService's onTileAdded /
+     *  onTileRemoved, and the result of requestAddTileService) — never assumed. */
+    val quickSettingsTileAdded: Flow<Boolean> = context.dataStore.data.map { it[Keys.QUICK_SETTINGS_TILE_ADDED] ?: false }
+
+    suspend fun setQuickSettingsTileAdded(added: Boolean) {
+        context.dataStore.edit { it[Keys.QUICK_SETTINGS_TILE_ADDED] = added }
     }
 
     /** Off by default: whether each blocked attempt's destination is logged (App Details

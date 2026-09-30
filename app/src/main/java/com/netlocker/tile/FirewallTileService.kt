@@ -28,7 +28,10 @@ class FirewallTileService : TileService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var statusJob: Job? = null
 
+    /** The tile becoming visible in an open panel is only possible while it's added — this
+     *  also catches tiles added in an older app version, before onTileAdded existed. */
     override fun onStartListening() {
+        scope.launch { ServiceLocator.preferencesManager.setQuickSettingsTileAdded(true) }
         statusJob?.cancel()
         statusJob = scope.launch {
             ServiceLocator.firewallController.status.collect { render(it) }
@@ -37,6 +40,14 @@ class FirewallTileService : TileService() {
 
     override fun onStopListening() {
         statusJob?.cancel()
+    }
+
+    override fun onTileAdded() {
+        scope.launch { ServiceLocator.preferencesManager.setQuickSettingsTileAdded(true) }
+    }
+
+    override fun onTileRemoved() {
+        scope.launch { ServiceLocator.preferencesManager.setQuickSettingsTileAdded(false) }
     }
 
     override fun onDestroy() {

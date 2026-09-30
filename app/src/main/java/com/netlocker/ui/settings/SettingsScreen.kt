@@ -312,13 +312,21 @@ fun SettingsScreen(
             },
         ) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                ClickRow(
-                    icon = Icons.Filled.Add,
-                    title = "Add tile",
-                    subtitle = "",
-                    enabled = true,
-                    onClick = { requestAddTile(context) },
-                )
+                if (uiState.quickSettingsTileAdded) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.netLocker.allowed, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Added", color = MaterialTheme.netLocker.allowed, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                } else {
+                    ClickRow(
+                        icon = Icons.Filled.Add,
+                        title = "Add tile",
+                        subtitle = "",
+                        enabled = true,
+                        onClick = { requestAddTile(context, onResult = viewModel::setQuickSettingsTileAdded) },
+                    )
+                }
             }
         }
 
@@ -642,14 +650,15 @@ private fun formatBytes(bytes: Long): String = when {
 }
 
 /** Asks Android to add the Firewall tile to Quick Settings (Android 13+). The system shows
- *  its own confirmation; NetLocker can't add it silently. */
+ *  its own confirmation; NetLocker can't add it silently. [onResult] reports what the
+ *  system actually did — true only for its "added" / "already added" result codes. */
 @androidx.annotation.RequiresApi(Build.VERSION_CODES.TIRAMISU)
-private fun requestAddTile(context: android.content.Context) {
+private fun requestAddTile(context: android.content.Context, onResult: (Boolean) -> Unit) {
     val statusBar = context.getSystemService(android.app.StatusBarManager::class.java) ?: return
     statusBar.requestAddTileService(
         android.content.ComponentName(context, com.netlocker.tile.FirewallTileService::class.java),
         context.getString(com.netlocker.R.string.tile_label),
         android.graphics.drawable.Icon.createWithResource(context, com.netlocker.R.drawable.ic_tile_firewall),
         context.mainExecutor,
-    ) { }
+    ) { resultCode -> onResult(resultCode == 0 || resultCode == 1) }
 }

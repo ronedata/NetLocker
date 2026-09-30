@@ -34,13 +34,14 @@ data class SettingsUiState(
     val autoStartOnBoot: Boolean = false,
     val scheduleMasterEnabled: Boolean = false,
     val showBlockedDestinations: Boolean = false,
+    val quickSettingsTileAdded: Boolean = false,
 )
 
 /** Never assumes success — mirrors exactly what the GitHub check / download actually
  *  returned at each step (spec's "no fake success" principle applies to updates too). */
-/** `combine` has no built-in 4-tuple; this is only used to shuttle four booleans out of
+/** `combine` has no built-in 5-tuple; this is only used to shuttle five booleans out of
  *  one `combine` call above. */
-private data class Quadruple<out A, out B, out C, out D>(val first: A, val second: B, val third: C, val fourth: D)
+private data class Quintuple<out A, out B, out C, out D, out E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
 
 sealed interface UpdateUiState {
     data object Idle : UpdateUiState
@@ -74,8 +75,9 @@ class SettingsViewModel(
         preferencesManager.autoStartOnBoot,
         preferencesManager.scheduleMasterEnabled,
         preferencesManager.showBlockedDestinations,
-    ) { minimalNotification, autoStartOnBoot, scheduleMasterEnabled, showBlockedDestinations ->
-        Quadruple(minimalNotification, autoStartOnBoot, scheduleMasterEnabled, showBlockedDestinations)
+        preferencesManager.quickSettingsTileAdded,
+    ) { minimalNotification, autoStartOnBoot, scheduleMasterEnabled, showBlockedDestinations, tileAdded ->
+        Quintuple(minimalNotification, autoStartOnBoot, scheduleMasterEnabled, showBlockedDestinations, tileAdded)
     }
 
     val uiState: StateFlow<SettingsUiState> = combine(displayPrefs, moreSwitches) { display, more ->
@@ -84,6 +86,7 @@ class SettingsViewModel(
             autoStartOnBoot = more.second,
             scheduleMasterEnabled = more.third,
             showBlockedDestinations = more.fourth,
+            quickSettingsTileAdded = more.fifth,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
@@ -97,6 +100,8 @@ class SettingsViewModel(
     fun setAutoStartOnBoot(enabled: Boolean) = viewModelScope.launch { preferencesManager.setAutoStartOnBoot(enabled) }
 
     fun setScheduleMasterEnabled(enabled: Boolean) = viewModelScope.launch { preferencesManager.setScheduleMasterEnabled(enabled) }
+
+    fun setQuickSettingsTileAdded(added: Boolean) = viewModelScope.launch { preferencesManager.setQuickSettingsTileAdded(added) }
 
     /** Turning this off deletes every already-logged destination immediately — the point
      *  of the toggle is that this data shouldn't exist once the user says so, not just

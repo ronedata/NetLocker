@@ -68,7 +68,12 @@ unless the switch is on, and turning it back off **deletes everything already lo
 immediately rather than just hiding it.
 
 **Keeping the firewall running.** A Quick Settings tile toggles the firewall (it reflects the
-real status, and opens the app if the VPN permission hasn't been granted yet). The optional
+real status, and opens the app if the VPN permission hasn't been granted yet). Settings'
+"Quick Settings tile" card shows "Added" once it's actually in the panel and an "Add tile"
+button otherwise — driven only by real signals (`TileService.onTileAdded`/`onTileRemoved`,
+and the result of `requestAddTileService`), never assumed (verified on-device: adding the
+tile flips the card to "Added", and the tile is confirmed genuinely present by opening the
+Quick Settings panel itself). The optional
 "Start when phone turns on" setting restarts it after a reboot or an app update, only if
 the VPN permission is still granted. Android's own "Always-on VPN" is linked from Settings
 but has not been verified with NetLocker on a device. Settings' "Battery optimization" card
