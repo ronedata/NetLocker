@@ -255,7 +255,7 @@ fun SettingsScreen(
             subtitle = if (batteryUnrestricted) {
                 "NetLocker can run unrestricted in the background — good, this helps the firewall stay on."
             } else {
-                "Samsung's battery management can stop the firewall while your phone is idle. Allow " +
+                "Your phone's battery management can stop the firewall while it's idle. Allow " +
                     "NetLocker to run unrestricted to reduce that risk."
             },
         ) {
@@ -282,9 +282,9 @@ fun SettingsScreen(
                     }
                 }
                 Text(
-                    "Samsung phones also have their own, separate battery settings: Settings → Apps → " +
-                        "NetLocker → Battery → set to \"Unrestricted\", and make sure NetLocker isn't in " +
-                        "Device Care's \"Sleeping apps\" or \"Deep sleeping apps\" list.",
+                    "Some phone makers also have their own, separate battery settings: Settings → Apps → " +
+                        "NetLocker → Battery → set to \"Unrestricted\", and make sure NetLocker isn't in any " +
+                        "\"Sleeping apps\" / \"Deep sleep\" / battery-saver exclusion list your phone has.",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

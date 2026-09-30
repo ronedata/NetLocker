@@ -30,11 +30,13 @@ import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,10 +47,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netlocker.domain.model.AppWithRule
 import com.netlocker.ui.components.AppIconImage
@@ -73,9 +78,33 @@ fun AppsScreen(
     viewModel: AppsViewModel = viewModel(factory = AppsViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val needsUsageAccess by viewModel.needsUsageAccessPrompt.collectAsState()
     val firewall = rememberFirewallActions()
+    val context = LocalContext.current
     var overflowOpen by remember { mutableStateOf(false) }
     var sortOpen by remember { mutableStateOf(false) }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResumeCheckUsageAccess() }
+
+    if (needsUsageAccess) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelUsageSort,
+            title = { Text("Usage access needed") },
+            text = {
+                Text(
+                    "Allow \"Usage access\" in Android settings to sort apps by data used today. " +
+                        "Nothing leaves your phone.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    context.startActivity(viewModel.usageAccessSettingsIntent())
+                    viewModel.dismissUsageAccessPrompt()
+                }) { Text("Open settings") }
+            },
+            dismissButton = { TextButton(onClick = viewModel::cancelUsageSort) { Text("Cancel") } },
+        )
+    }
 
     // Header, firewall banner, category chips and search stay fixed at the top; only the
     // app list below them scrolls.
@@ -128,8 +157,20 @@ fun AppsScreen(
                             onClick = { sortOpen = false; viewModel.onSortSelected(AppSort.NAME) },
                         )
                         DropdownMenuItem(
+                            text = { Text(if (state.sort == AppSort.NAME_DESC) "✓ Name (Z–A)" else "Name (Z–A)") },
+                            onClick = { sortOpen = false; viewModel.onSortSelected(AppSort.NAME_DESC) },
+                        )
+                        DropdownMenuItem(
                             text = { Text(if (state.sort == AppSort.RESTRICTED_FIRST) "✓ Restricted first" else "Restricted first") },
                             onClick = { sortOpen = false; viewModel.onSortSelected(AppSort.RESTRICTED_FIRST) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (state.sort == AppSort.DATA_USAGE_DESC) "✓ Most data used" else "Most data used") },
+                            onClick = { sortOpen = false; viewModel.onSortSelected(AppSort.DATA_USAGE_DESC) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (state.sort == AppSort.DATA_USAGE_ASC) "✓ Least data used" else "Least data used") },
+                            onClick = { sortOpen = false; viewModel.onSortSelected(AppSort.DATA_USAGE_ASC) },
                         )
                     }
                 }

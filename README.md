@@ -15,11 +15,14 @@ NetLocker lets you individually allow/block **Wi-Fi** and **Mobile Data** for ev
 installed app, without rooting the phone or installing Shizuku/ADB tooling. You get:
 
 - **Apps tab** — every installed app with quick Wi-Fi/Mobile-Data switches, category
-  chips (All / Games / Social / System), search, and a loading state while the first scan
-  of installed apps finishes
+  chips (All / Games / Social / System), search, a sort menu (Name A–Z/Z–A, Restricted
+  first, Most/Least data used today — the data-usage sorts need the same "Usage access"
+  permission as App Details and prompt for it the first time), and a loading state while
+  the first scan of installed apps finishes
 - **Rules tab** — only the apps you have a rule for, with status filters (Blocked /
   Wi-Fi Only / Mobile Only / Allowed), search, and per-rule Edit / Disable / Delete. Add a
-  rule from a picker of apps that don't have one yet
+  rule from a picker of apps that don't have one yet, filterable by the same category chips
+  as the Apps tab
 - A details screen per app showing its exact current access state
 - Rules that persist across app restarts and device reboots
 - Honest status reporting — a rule is never shown as "applied" unless it actually is: the
@@ -72,8 +75,10 @@ but has not been verified with NetLocker on a device. Settings' "Battery optimiz
 shows whether NetLocker is currently exempt from Android's Doze/App Standby battery
 management (verified on a real Samsung device: tapping "Allow unrestricted battery use"
 shows the real system dialog, and confirms exempt via `dumpsys deviceidle whitelist`
-afterwards) and links to the phone's own Battery/Device Care settings for the
-Samsung-specific restrictions Android's own API doesn't cover.
+afterwards) and links to the phone's own app-battery settings for whatever extra,
+manufacturer-specific restrictions Android's own API doesn't cover (the card's wording is
+deliberately phone-brand-neutral, since NetLocker runs on more than one manufacturer's
+devices).
 
 **Clear cache.** Settings has a "Clear cache" card with a "Clear app cache" button that
 deletes the contents of NetLocker's own `cacheDir` (verified on-device: writing a known-size

@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.netlocker.data.usage.AppDataUsageReader
+import com.netlocker.data.usage.DataUsage
 import com.netlocker.domain.model.AppCategory
 import com.netlocker.domain.model.AppWithRule
 import com.netlocker.domain.model.NetworkAccessState
@@ -22,7 +24,7 @@ import kotlinx.coroutines.launch
 
 enum class AppCategoryFilter { ALL, GAMES, SOCIAL, SYSTEM }
 
-enum class AppSort { NAME, RESTRICTED_FIRST }
+enum class AppSort { NAME, NAME_DESC, RESTRICTED_FIRST, DATA_USAGE_DESC, DATA_USAGE_ASC }
 
 data class AppsUiState(
     val apps: List<AppWithRule> = emptyList(),
@@ -45,16 +47,26 @@ class AppsViewModel(
     private val updateNetworkRuleUseCase: UpdateNetworkRuleUseCase,
     private val installedAppRepository: InstalledAppRepository,
     preferencesManager: PreferencesManager,
+    private val usageReader: AppDataUsageReader,
 ) : ViewModel() {
 
     private val controls = MutableStateFlow(Controls())
+    private val usageByUid = MutableStateFlow<Map<Int, DataUsage>>(emptyMap())
+    private val needsUsageAccess = MutableStateFlow(false)
+
+    /** The sort the user asked for while usage access was still missing — applied
+     *  automatically if they grant it and come back, so they don't have to re-select it. */
+    private var pendingUsageSort: AppSort? = null
+
+    val needsUsageAccessPrompt: StateFlow<Boolean> = needsUsageAccess
 
     val uiState: StateFlow<AppsUiState> = combine(
         observeAppsWithRulesUseCase(includeSystemApps = true),
         preferencesManager.showSystemApps,
         installedAppRepository.isLoaded,
         controls,
-    ) { allApps, showSystemApps, loaded, ctl ->
+        usageByUid,
+    ) { allApps, showSystemApps, loaded, ctl, usage ->
         val userApps = allApps.filterNot { it.app.isSystemApp }
         val systemApps = allApps.filter { it.app.isSystemApp }
 
@@ -86,7 +98,10 @@ class AppsViewModel(
 
         val sorted = when (ctl.sort) {
             AppSort.NAME -> matching // already user-apps-first, alphabetical from the use case
+            AppSort.NAME_DESC -> matching.sortedByDescending { it.app.label.lowercase() }
             AppSort.RESTRICTED_FIRST -> matching.sortedBy { it.rule.accessState == NetworkAccessState.ALLOWED }
+            AppSort.DATA_USAGE_DESC -> matching.sortedByDescending { usage[it.app.uid]?.totalBytes ?: 0L }
+            AppSort.DATA_USAGE_ASC -> matching.sortedBy { usage[it.app.uid]?.totalBytes ?: 0L }
         }
 
         AppsUiState(
@@ -103,7 +118,51 @@ class AppsViewModel(
 
     fun onQueryChange(query: String) = controls.update { it.copy(query = query) }
 
-    fun onSortSelected(sort: AppSort) = controls.update { it.copy(sort = sort) }
+    fun onSortSelected(sort: AppSort) {
+        val isUsageSort = sort == AppSort.DATA_USAGE_DESC || sort == AppSort.DATA_USAGE_ASC
+        if (!isUsageSort) {
+            pendingUsageSort = null
+            controls.update { it.copy(sort = sort) }
+            return
+        }
+        if (!usageReader.hasUsageAccess()) {
+            pendingUsageSort = sort
+            needsUsageAccess.value = true
+            return
+        }
+        applyUsageSort(sort)
+    }
+
+    private fun applyUsageSort(sort: AppSort) {
+        viewModelScope.launch {
+            usageByUid.value = usageReader.todayUsageForAllUids() ?: emptyMap()
+            controls.update { it.copy(sort = sort) }
+        }
+    }
+
+    /** User tapped "Open settings" on the usage-access prompt — keep [pendingUsageSort] so
+     *  [onResumeCheckUsageAccess] can apply it automatically once they come back. */
+    fun dismissUsageAccessPrompt() {
+        needsUsageAccess.value = false
+    }
+
+    /** User tapped "Cancel" on the prompt — drop the sort they asked for. */
+    fun cancelUsageSort() {
+        pendingUsageSort = null
+        needsUsageAccess.value = false
+    }
+
+    /** Called on every ON_RESUME; re-applies a sort the user picked before granting usage
+     *  access, in case they just came back from Android's usage-access settings screen. */
+    fun onResumeCheckUsageAccess() {
+        val sort = pendingUsageSort
+        if (sort != null && usageReader.hasUsageAccess()) {
+            pendingUsageSort = null
+            applyUsageSort(sort)
+        }
+    }
+
+    fun usageAccessSettingsIntent() = usageReader.usageAccessSettingsIntent()
 
     fun setWifiAllowed(packageName: String, allowed: Boolean, currentMobileDataAllowed: Boolean) {
         viewModelScope.launch { updateNetworkRuleUseCase(packageName, allowed, currentMobileDataAllowed) }
@@ -125,6 +184,7 @@ class AppsViewModel(
                     ServiceLocator.updateNetworkRuleUseCase,
                     ServiceLocator.installedAppRepository,
                     ServiceLocator.preferencesManager,
+                    ServiceLocator.appDataUsageReader,
                 )
             }
         }

@@ -2,6 +2,7 @@ package com.netlocker.ui.rules
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
@@ -20,12 +21,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PauseCircle
@@ -33,6 +38,7 @@ import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -69,14 +75,17 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.netlocker.domain.model.ALL_DAYS_MASK
+import com.netlocker.domain.model.AppCategory
 import com.netlocker.domain.model.InstalledApp
 import com.netlocker.domain.model.NetworkRule
 import com.netlocker.domain.model.RuleStatus
 import com.netlocker.domain.model.connectionsBlockedTodayLabel
 import com.netlocker.domain.usecase.RuleWithApp
+import com.netlocker.ui.apps.AppCategoryFilter
 import com.netlocker.ui.components.AppIconImage
 import com.netlocker.ui.components.CircleIconButton
 import com.netlocker.ui.components.NetLockerCard
+import com.netlocker.ui.components.NetLockerChip
 import com.netlocker.ui.components.NetLockerSearchField
 import com.netlocker.ui.components.StatusPill
 import com.netlocker.ui.components.allowedStyle
@@ -431,6 +440,7 @@ fun AddRuleSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selected by remember { mutableStateOf<InstalledApp?>(null) }
     var query by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf(AppCategoryFilter.ALL) }
     var wifi by remember { mutableStateOf(true) }
     var mobile by remember { mutableStateOf(false) }
     var scheduleEnabled by remember { mutableStateOf(false) }
@@ -452,12 +462,20 @@ fun AddRuleSheet(
             val app = selected
             if (app == null) {
                 Text("Select App", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                AddRuleCategoryChips(apps = apps, selected = category, onSelect = { category = it })
                 NetLockerSearchField(query, { query = it }, "Search apps...", Modifier.fillMaxWidth())
-                val filtered = remember(apps, query) {
-                    apps.filter {
-                        query.isBlank() ||
-                            it.label.contains(query.trim(), ignoreCase = true) ||
-                            it.packageName.contains(query.trim(), ignoreCase = true)
+                val filtered = remember(apps, query, category) {
+                    apps.filter { candidate ->
+                        val matchesQuery = query.isBlank() ||
+                            candidate.label.contains(query.trim(), ignoreCase = true) ||
+                            candidate.packageName.contains(query.trim(), ignoreCase = true)
+                        val matchesCategory = when (category) {
+                            AppCategoryFilter.ALL -> true
+                            AppCategoryFilter.GAMES -> candidate.category == AppCategory.GAME
+                            AppCategoryFilter.SOCIAL -> candidate.category == AppCategory.SOCIAL
+                            AppCategoryFilter.SYSTEM -> candidate.isSystemApp
+                        }
+                        matchesQuery && matchesCategory
                     }
                 }
                 if (filtered.isEmpty()) {
@@ -525,6 +543,44 @@ fun AddRuleSheet(
                     }
                 }
             }
+        }
+    }
+}
+
+/** Same category chips as the Apps tab, scoped to whatever's still addable (apps that
+ *  don't already have a rule) so counts here can differ from the Apps tab's. */
+@Composable
+private fun AddRuleCategoryChips(
+    apps: List<InstalledApp>,
+    selected: AppCategoryFilter,
+    onSelect: (AppCategoryFilter) -> Unit,
+) {
+    val counts = remember(apps) {
+        mapOf(
+            AppCategoryFilter.ALL to apps.size,
+            AppCategoryFilter.GAMES to apps.count { it.category == AppCategory.GAME },
+            AppCategoryFilter.SOCIAL to apps.count { it.category == AppCategory.SOCIAL },
+            AppCategoryFilter.SYSTEM to apps.count { it.isSystemApp },
+        )
+    }
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val chips = listOf(
+            Triple(AppCategoryFilter.ALL, "All", Icons.Filled.Apps),
+            Triple(AppCategoryFilter.GAMES, "Games", Icons.Filled.SportsEsports),
+            Triple(AppCategoryFilter.SOCIAL, "Social", Icons.Filled.Groups),
+            Triple(AppCategoryFilter.SYSTEM, "System", Icons.Filled.Android),
+        )
+        chips.forEach { (filter, label, icon) ->
+            NetLockerChip(
+                label = label,
+                icon = icon,
+                count = counts[filter] ?: 0,
+                selected = selected == filter,
+                onClick = { onSelect(filter) },
+            )
         }
     }
 }

@@ -75,6 +75,38 @@ class AppDataUsageReader(private val context: Context) {
         return total
     }
 
+    /** Today's usage for every app at once (one query per network type instead of one per
+     *  app), used to sort the app list by data used. Null if usage access hasn't been
+     *  granted / can't be read — the caller must not invent numbers in that case. */
+    suspend fun todayUsageForAllUids(): Map<Int, DataUsage>? = withContext(Dispatchers.IO) {
+        if (!hasUsageAccess()) return@withContext null
+        val end = System.currentTimeMillis()
+        val start = startOfToday(end)
+        try {
+            val wifi = bytesPerUid(ConnectivityManager.TYPE_WIFI, start, end)
+            val mobile = bytesPerUid(ConnectivityManager.TYPE_MOBILE, start, end)
+            (wifi.keys + mobile.keys).associateWith { uid ->
+                DataUsage(wifiBytes = wifi[uid] ?: 0L, mobileBytes = mobile[uid] ?: 0L)
+            }
+        } catch (e: Exception) {
+            Logger.w(TAG, "could not read data usage for all apps", e)
+            null
+        }
+    }
+
+    private fun bytesPerUid(networkType: Int, start: Long, end: Long): Map<Int, Long> {
+        val totals = mutableMapOf<Int, Long>()
+        val stats = networkStatsManager.queryDetails(networkType, null, start, end)
+        stats.use {
+            val bucket = NetworkStats.Bucket()
+            while (it.hasNextBucket()) {
+                it.getNextBucket(bucket)
+                totals[bucket.uid] = (totals[bucket.uid] ?: 0L) + bucket.rxBytes + bucket.txBytes
+            }
+        }
+        return totals
+    }
+
     private fun startOfToday(now: Long): Long = Calendar.getInstance().apply {
         timeInMillis = now
         set(Calendar.HOUR_OF_DAY, 0)
