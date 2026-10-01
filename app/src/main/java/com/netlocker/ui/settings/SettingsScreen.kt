@@ -90,6 +90,8 @@ import com.netlocker.ui.components.NetLockerCard
 import com.netlocker.ui.theme.netLocker
 import com.netlocker.util.AppTheme
 import com.netlocker.util.TextSize
+import com.netlocker.ui.whatsnew.WhatsNewDialog
+import com.netlocker.ui.whatsnew.WhatsNewViewModel
 import java.io.File
 import java.util.Locale
 
@@ -100,6 +102,7 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
+    val whatsNewViewModel: WhatsNewViewModel = viewModel(factory = WhatsNewViewModel.Factory)
     val context = LocalContext.current
 
     val installPermissionLauncher = rememberLauncherForActivityResult(
@@ -392,6 +395,14 @@ fun SettingsScreen(
         SettingsCard(icon = Icons.Filled.Info, title = "About NetLocker", subtitle = "App information and updates") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 InfoRow(icon = Icons.Filled.Lock, title = "Version", value = BuildConfig.VERSION_NAME)
+                ClickRow(
+                    icon = Icons.Filled.Update,
+                    title = "What's new",
+                    subtitle = "See the latest release notes",
+                    enabled = true,
+                    onClick = whatsNewViewModel::showManually,
+                )
+                WhatsNewDialog(whatsNewViewModel)
                 Button(
                     onClick = viewModel::checkForUpdate,
                     enabled = updateState !is UpdateUiState.Checking && updateState !is UpdateUiState.Downloading,

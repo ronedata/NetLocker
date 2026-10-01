@@ -36,6 +36,16 @@ class PreferencesManager(private val context: Context) {
         val SCHEDULE_MASTER_ENABLED = booleanPreferencesKey("schedule_master_enabled")
         val SHOW_BLOCKED_DESTINATIONS = booleanPreferencesKey("show_blocked_destinations")
         val QUICK_SETTINGS_TILE_ADDED = booleanPreferencesKey("quick_settings_tile_added")
+        val WHATS_NEW_LAST_SEEN_VERSION = stringPreferencesKey("whats_new_last_seen_version")
+    }
+
+    /** The app version the "What's new" dialog was last shown for (or auto-recorded for
+     *  on first launch, so a fresh install never shows it unprompted) — null only before
+     *  the very first launch has run this check. See ui/whatsnew/WhatsNewViewModel. */
+    val whatsNewLastSeenVersion: Flow<String?> = context.dataStore.data.map { it[Keys.WHATS_NEW_LAST_SEEN_VERSION] }
+
+    suspend fun setWhatsNewLastSeenVersion(version: String) {
+        context.dataStore.edit { it[Keys.WHATS_NEW_LAST_SEEN_VERSION] = version }
     }
 
     /** Off by default: whether the Quick Settings tile is currently added to the panel.

@@ -13,10 +13,12 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -31,6 +33,8 @@ import com.netlocker.ui.datausage.DataUsageScreen
 import com.netlocker.ui.rules.RulesScreen
 import com.netlocker.ui.settings.SettingsScreen
 import com.netlocker.ui.theme.netLocker
+import com.netlocker.ui.whatsnew.WhatsNewDialog
+import com.netlocker.ui.whatsnew.WhatsNewViewModel
 
 private object Routes {
     const val APPS = "apps"
@@ -56,6 +60,10 @@ fun NetLockerApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val showBottomBar = topLevelDestinations.any { it.route == currentRoute }
+
+    val whatsNewViewModel: WhatsNewViewModel = viewModel(factory = WhatsNewViewModel.Factory)
+    LaunchedEffect(Unit) { whatsNewViewModel.checkForAutoShow() }
+    WhatsNewDialog(whatsNewViewModel)
 
     Scaffold(
         containerColor = Color.Transparent,

@@ -1,6 +1,7 @@
 package com.netlocker.data.repository
 
 import com.netlocker.domain.model.AppUpdate
+import com.netlocker.domain.model.ReleaseNotesResult
 import com.netlocker.domain.model.UpdateCheckResult
 import com.netlocker.domain.model.isNewerVersion
 import com.netlocker.domain.repository.UpdateRepository
@@ -28,7 +29,62 @@ class GithubUpdateRepositoryImpl(
 ) : UpdateRepository {
 
     override suspend fun checkForUpdate(): UpdateCheckResult = withContext(Dispatchers.IO) {
-        try {
+        when (val fetch = fetchLatestRelease()) {
+            is RawFetch.NotFound -> UpdateCheckResult.UpToDate // nothing published yet
+            is RawFetch.Failed -> UpdateCheckResult.Error(fetch.message)
+            is RawFetch.Success -> {
+                val json = fetch.json
+                val tagName = json.optString("tag_name").ifBlank {
+                    return@withContext UpdateCheckResult.Error(MESSAGE_GENERIC_FAILURE)
+                }
+                val latestVersion = tagName.removePrefix("v")
+
+                if (!isNewerVersion(currentVersionName, latestVersion)) {
+                    return@withContext UpdateCheckResult.UpToDate
+                }
+
+                val assets = json.optJSONArray("assets")
+                val apkAsset = (0 until (assets?.length() ?: 0))
+                    .map { assets!!.getJSONObject(it) }
+                    .firstOrNull { it.optString("name").endsWith(".apk") }
+                    ?: return@withContext UpdateCheckResult.Error(
+                        "Version $latestVersion is available but can't be downloaded yet. Please try again later.",
+                    )
+
+                UpdateCheckResult.UpdateAvailable(
+                    AppUpdate(
+                        versionName = latestVersion,
+                        downloadUrl = apkAsset.getString("browser_download_url"),
+                        releaseNotes = json.optString("body"),
+                        releaseUrl = json.optString("html_url"),
+                    ),
+                )
+            }
+        }
+    }
+
+    /** The currently-installed version is (by construction — NetLocker only ever updates
+     *  to the latest release) the same release GitHub calls "latest", so this reuses the
+     *  exact same endpoint rather than needing a release-by-tag lookup. */
+    override suspend fun fetchLatestReleaseNotes(): ReleaseNotesResult = withContext(Dispatchers.IO) {
+        val fetch = fetchLatestRelease()
+        if (fetch !is RawFetch.Success) return@withContext ReleaseNotesResult.Unavailable
+        val tagName = fetch.json.optString("tag_name").ifBlank { return@withContext ReleaseNotesResult.Unavailable }
+        ReleaseNotesResult.Available(
+            versionName = tagName.removePrefix("v"),
+            notes = fetch.json.optString("body"),
+            releaseUrl = fetch.json.optString("html_url"),
+        )
+    }
+
+    private sealed interface RawFetch {
+        data class Success(val json: JSONObject) : RawFetch
+        data object NotFound : RawFetch
+        data class Failed(val message: String) : RawFetch
+    }
+
+    private fun fetchLatestRelease(): RawFetch {
+        return try {
             val url = URL("https://api.github.com/repos/$repoOwner/$repoName/releases/latest")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
@@ -42,44 +98,16 @@ class GithubUpdateRepositoryImpl(
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 connection.disconnect()
                 // 404 = nothing has been published, i.e. nothing newer than what's installed.
-                if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) return@withContext UpdateCheckResult.UpToDate
-                return@withContext UpdateCheckResult.Error(
-                    if (responseCode == 403) MESSAGE_TRY_LATER else MESSAGE_GENERIC_FAILURE,
-                )
+                if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) return RawFetch.NotFound
+                return RawFetch.Failed(if (responseCode == 403) MESSAGE_TRY_LATER else MESSAGE_GENERIC_FAILURE)
             }
 
             val body = connection.inputStream.bufferedReader().readText()
             connection.disconnect()
-            val json = JSONObject(body)
-
-            val tagName = json.optString("tag_name").ifBlank {
-                return@withContext UpdateCheckResult.Error(MESSAGE_GENERIC_FAILURE)
-            }
-            val latestVersion = tagName.removePrefix("v")
-
-            if (!isNewerVersion(currentVersionName, latestVersion)) {
-                return@withContext UpdateCheckResult.UpToDate
-            }
-
-            val assets = json.optJSONArray("assets")
-            val apkAsset = (0 until (assets?.length() ?: 0))
-                .map { assets!!.getJSONObject(it) }
-                .firstOrNull { it.optString("name").endsWith(".apk") }
-                ?: return@withContext UpdateCheckResult.Error(
-                    "Version $latestVersion is available but can't be downloaded yet. Please try again later.",
-                )
-
-            UpdateCheckResult.UpdateAvailable(
-                AppUpdate(
-                    versionName = latestVersion,
-                    downloadUrl = apkAsset.getString("browser_download_url"),
-                    releaseNotes = json.optString("body"),
-                    releaseUrl = json.optString("html_url"),
-                ),
-            )
+            RawFetch.Success(JSONObject(body))
         } catch (e: Exception) {
-            Logger.w(TAG, "update check failed", e)
-            UpdateCheckResult.Error(friendlyUpdateError(e))
+            Logger.w(TAG, "release fetch failed", e)
+            RawFetch.Failed(friendlyUpdateError(e))
         }
     }
 

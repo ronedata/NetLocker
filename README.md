@@ -90,6 +90,14 @@ manufacturer-specific restrictions Android's own API doesn't cover (the card's w
 deliberately phone-brand-neutral, since NetLocker runs on more than one manufacturer's
 devices).
 
+**What's new.** Right after an update, NetLocker shows the new version's release notes
+once (recorded as "seen" so it never repeats for the same version, and a fresh install
+never shows anything — there's nothing to announce yet). Settings → About NetLocker has
+a "What's new" row to see them again anytime. Both reuse the same GitHub Releases
+endpoint `checkForUpdate()` already calls, fetching the real published notes — never
+invented text — and a silent failure (no connection) just means it quietly retries on
+the next launch rather than showing an unprompted error.
+
 **Clear cache.** Settings has a "Clear cache" card with a "Clear app cache" button that
 deletes the contents of NetLocker's own `cacheDir` (verified on-device: writing a known-size
 file into the cache directory and clearing it reports the exact size freed, and the file is

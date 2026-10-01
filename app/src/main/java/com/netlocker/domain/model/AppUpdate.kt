@@ -16,6 +16,14 @@ sealed interface UpdateCheckResult {
     data class Error(val message: String) : UpdateCheckResult
 }
 
+/** Result of fetching the latest published release's own notes — used for "What's new"
+ *  (what does the version I already have include), not "is something newer available"
+ *  (see [UpdateCheckResult] for that). */
+sealed interface ReleaseNotesResult {
+    data class Available(val versionName: String, val notes: String, val releaseUrl: String) : ReleaseNotesResult
+    data object Unavailable : ReleaseNotesResult
+}
+
 /**
  * Compares two dot-separated version strings (a leading "v" is ignored) numerically,
  * component by component — "1.10.0" is newer than "1.9.0", unlike a plain string
