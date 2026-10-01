@@ -1,17 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Shield + keyhole mark, matching the same glyph/colors as the in-app header badge
+     (Icons.Filled.Shield on the brand gradient) and card tone (#0B1A38). Kept within the
+     ~66dp safe-zone circle centered at (54,54) so it survives every launcher mask shape. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Simple shield glyph, centered in the 108x108 adaptive-icon safe zone. -->
+    <!-- Outer shield, white -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,20 L78,30 V52 C78,68 68,80 54,86 C40,80 30,68 30,52 V30 Z" />
+        android:pathData="M54,21
+            C67,21 80,26.5 80,33
+            C80,58 70,78.5 54,91
+            C38,78.5 28,58 28,33
+            C28,26.5 41,21 54,21 Z" />
+    <!-- Inner shield, inset — the app's own card/background navy, not a generic color -->
     <path
-        android:fillColor="#1B5E20"
-        android:pathData="M54,32 L68,38 V52 C68,62 62,70 54,74 C46,70 40,62 40,52 V38 Z" />
+        android:fillColor="#0B1A38"
+        android:pathData="M54,29
+            C63.5,29 73,33 73,37.5
+            C73,56.5 65.5,72 54,82
+            C42.5,72 35,56.5 35,37.5
+            C35,33 44.5,29 54,29 Z" />
+    <!-- Keyhole, white -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M48,50 L48,46 C48,42.7 50.7,40 54,40 C57.3,40 60,42.7 60,46 L60,50 L62,50 L62,64 L46,64 L46,50 Z M51,50 L57,50 L57,46 C57,44.3 55.7,43 54,43 C52.3,43 51,44.3 51,46 Z" />
+        android:pathData="M47,47 A7,7 0 1,0 61,47 A7,7 0 1,0 47,47 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50.5,52 L57.5,52 L61,70 L47,70 Z" />
 </vector>
